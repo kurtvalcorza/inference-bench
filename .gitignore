@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated artifacts (models, engines, datasets, logs)
+*.onnx
+*.plan
+*.engine
+*.pth
+*.pt
+build/
+out_*/
+trt_*/
+*_out/
+mlperf_log_*.txt
+mlperf_log_*.json
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
