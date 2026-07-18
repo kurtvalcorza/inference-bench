@@ -80,6 +80,18 @@ The GPU (TensorRT) is **~175×** the CPU on ResNet-50 — why inference runs on 
 
 ---
 
+## Other standards (`standards/`)
+
+| Benchmark | Metric | RTX 5070 Ti |
+|---|---|---|
+| Polygraphy (trtexec equiv) — ResNet-50 fp16 bs128 | throughput | ~3,965 img/s |
+| llama.cpp llama-bench — TinyLlama-1.1B Q4, **GPU** | prefill / decode | 19,082 / 463 t/s |
+| llama.cpp llama-bench — TinyLlama-1.1B Q4, **CPU** (24t) | prefill / decode | 410 / 27.2 t/s |
+| AI-Benchmark (ETH) | AI Score | run on T4/CPU (TF ≠ Blackwell) |
+| MLPerf Client | tokens/s, TTFT | native-Windows app (see doc) |
+
+GPU vs CPU on the LLM: ~46× prefill, ~17× decode.
+
 ## Reference vs optimized vs raw (ResNet-50, 5070 Ti)
 
 | Path | img/s | What it measures |

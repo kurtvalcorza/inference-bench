@@ -128,6 +128,30 @@ Then point any ResNet-50 run's `--dataset-path` at `/root/mlperf/vision/inet_val
 
 ---
 
+## 6. Other benchmark standards (`standards/`)
+
+```bash
+# NVIDIA TensorRT profiler (pip trtexec equivalent) — ResNet-50 latency/throughput
+bash standards/polygraphy_resnet.sh                 # BS=256 bash ... to change batch
+
+# LLM token throughput (prefill + decode), TinyLlama-1.1B
+MODE=cuda bash standards/llama_bench.sh             # GPU (needs the CUDA toolkit — see setup.md)
+MODE=cpu  bash standards/llama_bench.sh             # CPU only, any machine
+```
+
+- **AI-Benchmark** (`standards/ai_benchmark.md`) — TensorFlow "AI Score"; run on a **T4 or CPU**, not
+  the 5070 Ti (TF has no Blackwell support, and it conflicts with the torch/tensorrt venv).
+- **MLPerf Client** (`standards/mlperf_client.md`) — the official consumer-PC LLM benchmark; a native
+  **Windows** app (ONNX Runtime GenAI + CUDA/DirectML). For a scriptable LLM number here, use
+  `llama_bench.sh` instead.
+
+To build llama.cpp with CUDA you need the CUDA toolkit (nvcc):
+```bash
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+dpkg -i cuda-keyring_1.1-1_all.deb && apt-get update
+apt-get install -y cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 cuda-nvrtc-dev-12-8
+```
+
 ## Which benchmark should I run?
 
 | Goal | Run |

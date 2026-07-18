@@ -12,6 +12,7 @@ It contains two distinct things, kept clearly separate:
 | **`reference/`** | MLPerf Inference reference implementations (BERT, ResNet-50, Whisper) | **Official MLCommons** LoadGen harness |
 | **`tensorrt/`** | MLPerf ResNet-50 with an optimized **TensorRT** backend | **Official MLCommons** LoadGen + custom SUT |
 | **`microbench/`** | Raw GPU/CPU microbenchmarks (TFLOPS, bandwidth, throughput) | **Custom** (not MLPerf) |
+| **`standards/`** | Other standards: Polygraphy/trtexec, llama.cpp, AI-Benchmark, MLPerf Client | Third-party |
 
 > **Honesty note.** Only `reference/` and `tensorrt/` use the real MLCommons framework.
 > `microbench/` is homegrown — accurate for comparing hardware, but not MLPerf. See
@@ -60,9 +61,14 @@ mlperf-suite/
 │   ├── backend_tensorrt.py       ← the SUT backend (dynamic-batch fp16 engine)
 │   ├── export_resnet50_onnx.py   ← torchvision → fp16 dynamic ONNX
 │   └── trt_mlperf_run.sh         ← installs backend, patches main.py, runs scenarios
-└── microbench/
-    ├── gpu_bench.py              ← GPU TFLOPS / bandwidth / ResNet throughput
-    └── cpu_bench.py              ← CPU version
+├── microbench/
+│   ├── gpu_bench.py              ← GPU TFLOPS / bandwidth / ResNet throughput
+│   └── cpu_bench.py              ← CPU version
+└── standards/                    ← other benchmark standards
+    ├── polygraphy_resnet.sh      ← NVIDIA TensorRT profiler (trtexec equivalent)
+    ├── llama_bench.sh            ← llama.cpp LLM token throughput (CPU + CUDA)
+    ├── ai_benchmark.md           ← AI-Benchmark (ETH) — TF, run on T4/CPU
+    └── mlperf_client.md          ← MLPerf Client — consumer-PC LLM (Windows app)
 ```
 
 ## Results at a glance
@@ -76,6 +82,9 @@ mlperf-suite/
 | MLPerf Whisper (reference) — WER | ~3.5–5% | 2.16% |
 | microbench ResNet-50 fp16 (TensorRT) | 4,774 img/s | 1,945 img/s |
 | microbench FP16 / BF16 TFLOPS | 42.7 / 51.4 | 22.7 / 2.1 |
+| Polygraphy (trtexec) ResNet-50 fp16 bs128 | ~3,965 img/s | — |
+| llama-bench TinyLlama-1.1B Q4 (GPU) | 19,082 / 463 t/s | — |
+| llama-bench TinyLlama-1.1B Q4 (CPU) | 410 / 27 t/s | — |
 
 Full tables (incl. CPU, latency percentiles, per-batch curves) in [docs/results.md](docs/results.md).
 
