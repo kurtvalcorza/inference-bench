@@ -39,5 +39,7 @@ if [ ! -s "$ONNX" ]; then
 fi
 
 echo "polygraphy: $ONNX  batch=$BS"
-polygraphy run "$ONNX" --trt --input-shapes x:[$BS,3,224,224] --warm-up 25 --iterations 200
+if ! polygraphy run "$ONNX" --trt --input-shapes x:[$BS,3,224,224] --warm-up 25 --iterations 200; then
+  echo "!! polygraphy run FAILED — no valid throughput produced"; exit 1
+fi
 echo "throughput = BS / (Average inference time).  e.g. 128 / 0.03228s = ~3965 img/s"

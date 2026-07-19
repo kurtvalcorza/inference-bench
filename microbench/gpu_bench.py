@@ -90,14 +90,24 @@ def resnet_tensorrt(bs=64, iters=50):
     network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.STRONGLY_TYPED))
     assert trt.OnnxParser(network, logger).parse(buf.getvalue()), "onnx parse failed"
     serialized = builder.build_serialized_network(network, builder.create_builder_config())
+    if serialized is None:
+        raise RuntimeError("TensorRT build_serialized_network() returned None")
     engine = trt.Runtime(logger).deserialize_cuda_engine(serialized)
+    if engine is None:
+        raise RuntimeError("TensorRT deserialize_cuda_engine() returned None")
     ctx = engine.create_execution_context()
+    if ctx is None:
+        raise RuntimeError("TensorRT create_execution_context() returned None")
     names = [engine.get_tensor_name(i) for i in range(engine.num_io_tensors)]
     inp = torch.randn(bs, 3, 224, 224, device=dev, dtype=torch.half).contiguous()
     out = torch.empty(bs, 1000, device=dev, dtype=torch.half).contiguous()
-    ctx.set_tensor_address(names[0], inp.data_ptr()); ctx.set_tensor_address(names[1], out.data_ptr())
+    if not (ctx.set_tensor_address(names[0], inp.data_ptr()) and ctx.set_tensor_address(names[1], out.data_ptr())):
+        raise RuntimeError("TensorRT set_tensor_address failed")
     s = torch.cuda.current_stream().cuda_stream
-    dt = timed(lambda: ctx.execute_async_v3(s), iters, warmup=20)
+    def step():   # a False return would otherwise let us time a no-op and report bogus img/s
+        if not ctx.execute_async_v3(s):
+            raise RuntimeError("TensorRT execute_async_v3 failed")
+    dt = timed(step, iters, warmup=20)
     return bs / dt
 
 # Sweep batches so big GPUs (A100/H200) aren't understated; report PEAK img/s.

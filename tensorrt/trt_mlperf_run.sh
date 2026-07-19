@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# MLPerf ResNet-50 with an optimized TensorRT fp16 SUT (LoadGen -> VALID results).
-# Runs SingleStream (latency), Offline (throughput), and an accuracy pass.
+# ResNet-50 with an optimized TensorRT fp16 SUT under MLCommons LoadGen.
+# Runs SingleStream (latency), Offline (throughput), and an accuracy pass, and FAILS LOUDLY
+# (non-zero exit) if any scenario is not LoadGen-VALID or accuracy falls below ACC_MIN.
+# NOTE: MLPerf-inspired only — short config + subset data, NOT a conformant MLPerf result.
 #
 # Portable: reads its backend from this repo, honours env overrides, and
 # bootstraps the harness / ONNX / accuracy set if missing.
@@ -93,25 +95,57 @@ fi
 echo "DATA=$DATA  ($(wc -l < "$VMAP") images)"
 
 cd "$H/python"
-run () {  # scenario, extra-args, outdir
+# Fresh, unique output dir per invocation so a failed run can NEVER reprint a prior run's summary.
+STAMP=$(date +%Y%m%d-%H%M%S)
+RUNROOT="$BENCH_ROOT/vision/runs/$STAMP"
+mkdir -p "$RUNROOT"
+ACC_MIN=${ACC_MIN:-70}          # top-1 floor (subset ResNet-50 v1: ~75% mirror / ~84% imagenette)
+FAILED=0
+echo "run dir: $RUNROOT"
+
+run_main () {  # scenario, extra-args, outdir  -> returns main.py's exit code
+  rm -rf "$3"; mkdir -p "$3"
   python main.py --profile resnet50-pytorch --backend tensorrt --model "$ONNX" \
-    --dataset-path "$DATA" --user_conf "$CONF" --max-batchsize $MAXBS \
-    --scenario "$1" $2 --output "$3" >/tmp/trt_$1.log 2>&1 || true
+    --dataset-path "$DATA" --user_conf "$CONF" --max-batchsize "$MAXBS" \
+    --scenario "$1" $2 --output "$3" >"$3/run.log" 2>&1
+}
+
+check_valid () {  # scenario, outdir, rc  -> sets FAILED on any problem
+  local scen="$1" out="$2" rc="$3" sum="$2/mlperf_log_summary.txt"
+  if [ "$rc" -ne 0 ];              then echo "!! $scen: main.py exited $rc";  tail -15 "$out/run.log"; FAILED=1; return; fi
+  if [ ! -s "$sum" ];              then echo "!! $scen: no summary written"; tail -15 "$out/run.log"; FAILED=1; return; fi
+  if ! grep -q "Result is : VALID" "$sum"; then
+    echo "!! $scen: LoadGen result is NOT VALID"; grep -i "result is" "$sum" || true; FAILED=1; return; fi
+  echo "-- $scen: VALID --"; sed -n '1,22p' "$sum"
 }
 
 echo
 echo "############ SingleStream (p50/p90/p99 latency) ############"
-run SingleStream "" "$BENCH_ROOT/vision/trt_ss"
-sed -n '1,22p' "$BENCH_ROOT/vision/trt_ss/mlperf_log_summary.txt" 2>/dev/null || { echo "(no summary)"; tail -15 /tmp/trt_SingleStream.log; }
+run_main SingleStream "" "$RUNROOT/SingleStream"; check_valid SingleStream "$RUNROOT/SingleStream" $?
 
 echo
 echo "############ Offline (throughput) ############"
-run Offline "" "$BENCH_ROOT/vision/trt_off"
-sed -n '1,14p' "$BENCH_ROOT/vision/trt_off/mlperf_log_summary.txt" 2>/dev/null || echo "(no summary)"
+run_main Offline "" "$RUNROOT/Offline"; check_valid Offline "$RUNROOT/Offline" $?
 
 echo
 echo "############ Accuracy (top-1, fp16 TRT) ############"
-run Offline "--accuracy" "$BENCH_ROOT/vision/trt_acc"
-python ../tools/accuracy-imagenet.py --mlperf-accuracy-file "$BENCH_ROOT/vision/trt_acc/mlperf_log_accuracy.json" \
-  --imagenet-val-file "$VMAP" --dtype float32 2>&1 | tail -1
-echo "DONE trt mlperf"
+# main.py's post-test percentile stats crash AFTER LoadGen writes the accuracy log (known numpy
+# issue) => gate on the freshly-written artifact, not the exit code.
+ACC="$RUNROOT/Accuracy"
+run_main Offline "--accuracy" "$ACC" || true
+AJSON="$ACC/mlperf_log_accuracy.json"
+if [ ! -s "$AJSON" ]; then
+  echo "!! accuracy: no mlperf_log_accuracy.json produced"; tail -20 "$ACC/run.log"; FAILED=1
+else
+  ACC_OUT=$(python ../tools/accuracy-imagenet.py --mlperf-accuracy-file "$AJSON" \
+    --imagenet-val-file "$VMAP" --dtype float32 2>&1 | tail -1)
+  echo "$ACC_OUT"
+  TOP1=$(echo "$ACC_OUT" | grep -oE "[0-9]+\.[0-9]+" | head -1)
+  if   [ -z "$TOP1" ];                             then echo "!! accuracy: could not parse top-1 from scorer"; FAILED=1
+  elif awk "BEGIN{exit !($TOP1 < $ACC_MIN)}";      then echo "!! accuracy ${TOP1}% < floor ${ACC_MIN}% — suspect run"; FAILED=1
+  else echo "accuracy OK: ${TOP1}% (>= ${ACC_MIN}%)"; fi
+fi
+
+echo
+if [ "$FAILED" -ne 0 ]; then echo "TRT MLPERF: FAILED — see errors above; run dir $RUNROOT"; exit 1; fi
+echo "TRT MLPERF: all checks passed (LoadGen-VALID under short config); run dir $RUNROOT"
