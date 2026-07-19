@@ -53,7 +53,7 @@ python microbench/gpu_bench.py                      # portable, no other setup
 bash   tensorrt/trt_mlperf_run.sh                   # self-bootstraps harness + ONNX + data subset
 ```
 
-See [DELEGATION.md](../DELEGATION.md) for the full hand-off checklist.
+See [HANDOFF.md](../HANDOFF.md) for the full hand-off checklist.
 
 ## 2. Base toolchain + Python venv
 

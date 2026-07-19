@@ -1,4 +1,4 @@
-# Delegation checklist — run these benchmarks on a work GPU (A100 / H200)
+# Handoff checklist — run these benchmarks on a work GPU (A100 / H200)
 
 A stand-alone guide for someone running this suite on a **native-Linux datacenter box**, with no
 prior context on the repo. You need: an NVIDIA GPU, a recent driver, git, python3, and internet.

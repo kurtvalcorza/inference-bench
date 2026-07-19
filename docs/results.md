@@ -173,5 +173,5 @@ The gap between the middle and bottom rows is the reference-grade SUT's host ove
 
 - **A100 (sm_80) / H200 (sm_90)** — run `microbench/gpu_bench.py` (with a large sweep) and/or
   `tensorrt/trt_mlperf_run.sh` on the work boxes (or a Brev cloud instance) and paste the JSON.
-  The scripts are portable to native Linux — hand off with [../DELEGATION.md](../DELEGATION.md).
+  The scripts are portable to native Linux — hand off with [../HANDOFF.md](../HANDOFF.md).
 - **Work-machine CPUs** — `microbench/cpu_bench.py`.

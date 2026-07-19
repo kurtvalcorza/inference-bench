@@ -45,7 +45,7 @@ Colab (headless via the `google-colab-cli`) and per-benchmark instructions are i
 ```
 inference-bench/
 ├── README.md                     ← you are here
-├── DELEGATION.md                 ← hand-off checklist to run on a work A100/H200 (native Linux)
+├── HANDOFF.md                    ← hand-off checklist to run on a work A100/H200 (native Linux)
 ├── docs/
 │   ├── setup.md                  ← WSL distro, deps, Colab CLI, HF, TensorRT
 │   ├── user-guide.md             ← how to run each benchmark, step by step
@@ -95,7 +95,7 @@ Full tables (incl. CPU, latency percentiles, per-batch curves) in [docs/results.
 - **Colab T4** (sm_75, 16 GB) — headless via `google-colab-cli`
 - **CPU** — Intel Core Ultra 9 275HX (24 threads), and any work machine
 - **A100 / H200** — pending; the scripts are portable to a native-Linux box — hand off with
-  [DELEGATION.md](DELEGATION.md) and paste the results
+  [HANDOFF.md](HANDOFF.md) and paste the results
 
 ## License / provenance
 
