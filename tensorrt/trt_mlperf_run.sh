@@ -37,11 +37,11 @@ CONF="$BENCH_ROOT/vision/trt.conf"
 
 echo "BENCH_ROOT=$BENCH_ROOT  INFERENCE_REPO=$INFERENCE_REPO  MAXBS=$MAXBS"
 
-# --- dependencies -----------------------------------------------------------
-python -c "import mlperf_loadgen" 2>/dev/null || pip install -q mlcommons-loadgen
-python -c "import tensorrt, onnx"  2>/dev/null || pip install -q tensorrt onnx
-python -c "import cv2"             2>/dev/null || pip install -q opencv-python-headless
-python -c "import pycocotools"     2>/dev/null || pip install -q pycocotools   # main.py imports coco unconditionally
+# --- dependencies (pinned to the validated stack in ../requirements.txt, not "latest") ----------
+python -c "import mlperf_loadgen" 2>/dev/null || pip install -q "mlcommons-loadgen==6.0.16"
+python -c "import tensorrt, onnx"  2>/dev/null || pip install -q "tensorrt==11.1.0.106" "onnx==1.22.0"
+python -c "import cv2"             2>/dev/null || pip install -q "opencv-python-headless==5.0.0.93"
+python -c "import pycocotools"     2>/dev/null || pip install -q "pycocotools==2.0.11"   # main.py imports coco unconditionally
 
 # --- harness (pin ENFORCED every run, not just on fresh clone) --------------
 INFERENCE_REF="${INFERENCE_REF:-da738a5}"   # commit the notebooks/results were produced against
@@ -106,7 +106,7 @@ echo "===== ensure accuracy/data subset ====="
 if [ ! -s "$VMAP" ]; then
   echo "no val_map at $VMAP — building representative ImageNet subset (needs HF mirror)"
   # need BOTH huggingface_hub (<1.0, or it breaks transformers 4.48) AND pyarrow — check both, not just presence
-  python - <<'PY' || pip install -q "huggingface_hub>=0.24,<1.0" pyarrow
+  python - <<'PY' || pip install -q "huggingface-hub==0.36.2" "pyarrow==25.0.0"
 import sys
 try:
     import pyarrow  # noqa: F401
@@ -119,28 +119,25 @@ PY
     echo "!! subset build failed. Point DATA=... at a val set with val_map.txt (e.g. Imagenette) and re-run."; exit 1; }
 fi
 # Validate the dataset whether just built OR pre-existing/cached — a non-empty val_map is NOT enough
-# (a partial/poisoned set from an older build could linger). Every referenced image must exist & be
-# non-empty; fail loudly instead of scoring against a broken set.
-python - "$DATA" "$VMAP" <<'PY' || { echo "!! dataset validation failed at $DATA — rebuild or point DATA= at a good val set"; exit 1; }
-import os, sys
-data, vmap = sys.argv[1], sys.argv[2]
-rows = [ln.split() for ln in open(vmap) if ln.strip()]
-if not rows:
-    sys.exit("empty val_map")
-bad = [r[0] for r in rows if len(r) < 2 or not (
-    os.path.isfile(os.path.join(data, r[0])) and os.path.getsize(os.path.join(data, r[0])) > 0)]
-if bad:
-    sys.exit(f"{len(bad)}/{len(rows)} val_map entries missing/empty/malformed (e.g. {bad[:3]})")
-print(f"dataset OK: {len(rows)} images, all present")
-PY
-EXPECTED=$(grep -c . "$VMAP")     # expected sample count for the accuracy cross-check (#5)
+# (a partial/poisoned set from an older build could linger). validate_dataset.py enforces an
+# INDEPENDENT profile (sample-count floor, distinct-class floor, unique paths, in-range int labels,
+# every image present & non-empty) so a truncated/duplicate map can't self-certify a favorable
+# accuracy subset. Floors are env-tunable: the representative 5k/1000-class mirror wants
+# MIN_SAMPLES=5000 MIN_CLASSES=1000; defaults (1000/10) accept that AND Imagenette (3925/10).
+MIN_SAMPLES="${MIN_SAMPLES:-1000}" MIN_CLASSES="${MIN_CLASSES:-10}" \
+  python "$SCRIPT_DIR/validate_dataset.py" "$DATA" "$VMAP" \
+  || { echo "!! dataset validation failed at $DATA — rebuild or point DATA= at a good val set"; exit 1; }
+# EXPECTED is only trusted AFTER the profile passes (so the accuracy 'total == EXPECTED' cross-check
+# can't be satisfied by a 1-row map that also sets EXPECTED=1).
+EXPECTED=$(grep -c . "$VMAP")
 echo "DATA=$DATA  ($EXPECTED images)"
 
 cd "$H/python"
-# Fresh, unique output dir per invocation so a failed run can NEVER reprint a prior run's summary.
-STAMP=$(date +%Y%m%d-%H%M%S)
-RUNROOT="$BENCH_ROOT/vision/runs/$STAMP"
-mkdir -p "$RUNROOT"
+# Fresh, unique output dir per invocation so a failed run can NEVER reprint a prior run's summary,
+# and two invocations started within the same second can't overwrite each other's logs (mktemp -d
+# guarantees uniqueness — a second-resolution timestamp alone does not).
+mkdir -p "$BENCH_ROOT/vision/runs"
+RUNROOT=$(mktemp -d "$BENCH_ROOT/vision/runs/$(date +%Y%m%d-%H%M%S).XXXXXX")
 ACC_MIN=${ACC_MIN:-70}          # top-1 floor (subset ResNet-50 v1: ~75% mirror / ~84% imagenette)
 FAILED=0
 echo "run dir: $RUNROOT"

@@ -15,25 +15,24 @@ if [ -z "${BENCH_ROOT:-}" ]; then
 fi
 LLM="$BENCH_ROOT/llm"
 mkdir -p "$LLM"; cd "$LLM"
-LLAMA_REF="${LLAMA_REF:-}"           # set to a commit/tag to pin; empty = latest (resolved sha printed below)
+# Fail-closed by default (finding #8): pin to a known tag rather than following upstream tip. The
+# historical numbers were from an unpinned build; this pin makes future runs reproducible. Override
+# LLAMA_REF to build another commit/tag deliberately.
+LLAMA_REF="${LLAMA_REF:-b10068}"
 if [ ! -d llama.cpp ]; then
-  if [ -n "$LLAMA_REF" ]; then
-    git clone --filter=blob:none --no-checkout https://github.com/ggml-org/llama.cpp.git
-  else
-    git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
-  fi
+  git clone --filter=blob:none --no-checkout https://github.com/ggml-org/llama.cpp.git
 fi
-# Enforce a requested ref on the CACHED clone too (fetch if missing), not just on fresh clone.
-if [ -n "$LLAMA_REF" ]; then
+# Resolve the pin (fetch by tag/commit name if a cached clone lacks it); fail on an invalid ref.
+w=$(git -C llama.cpp rev-parse -q --verify "$LLAMA_REF^{commit}" 2>/dev/null || true)
+if [ -z "$w" ]; then
+  git -C llama.cpp fetch --filter=blob:none -q origin "$LLAMA_REF" 2>/dev/null \
+    || git -C llama.cpp fetch --filter=blob:none -q --tags origin 2>/dev/null || true
   w=$(git -C llama.cpp rev-parse -q --verify "$LLAMA_REF^{commit}" 2>/dev/null || true)
-  if [ -z "$w" ]; then
-    git -C llama.cpp fetch --filter=blob:none -q origin "$LLAMA_REF" 2>/dev/null || true
-    w=$(git -C llama.cpp rev-parse -q --verify "$LLAMA_REF^{commit}" 2>/dev/null || true)
-  fi
-  [ -z "$w" ] && { echo "!! LLAMA_REF=$LLAMA_REF not found in llama.cpp clone"; exit 1; }
-  git -C llama.cpp checkout -q "$w" || { echo "!! could not checkout llama.cpp @ $LLAMA_REF"; exit 1; }
 fi
-echo "llama.cpp commit: $(git -C llama.cpp rev-parse --short HEAD) (pin: ${LLAMA_REF:-none — set LLAMA_REF to pin})"
+[ -z "$w" ] && { echo "!! LLAMA_REF=$LLAMA_REF not found in llama.cpp clone"; exit 1; }
+# reset --hard (not checkout) so a cached clone with dirty TRACKED changes can't silently be built.
+git -C llama.cpp reset --hard -q "$w" || { echo "!! could not pin llama.cpp to $LLAMA_REF"; exit 1; }
+echo "llama.cpp pinned: $(git -C llama.cpp rev-parse --short HEAD) (LLAMA_REF=$LLAMA_REF)"
 cd llama.cpp
 
 if [ "$MODE" = cuda ]; then

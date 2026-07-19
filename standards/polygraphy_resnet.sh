@@ -20,8 +20,9 @@ if [ -z "${BENCH_ROOT:-}" ]; then
 fi
 mkdir -p "$BENCH_ROOT/vision"
 
-pip show polygraphy >/dev/null 2>&1 || pip install -q polygraphy colored
-python -c "import tensorrt, onnx" 2>/dev/null || pip install -q tensorrt onnx   # need BOTH, not just tensorrt
+# Pinned to the validated stack in ../requirements.txt (finding #8: don't install "latest").
+pip show polygraphy >/dev/null 2>&1 || pip install -q "polygraphy==0.50.3" colored
+python -c "import tensorrt, onnx" 2>/dev/null || pip install -q "tensorrt==11.1.0.106" "onnx==1.22.0"   # need BOTH
 
 # put the pip CUDA runtime libs on the loader path (polygraphy's runner needs libcudart)
 NVBASE=$(python -c "import os,nvidia; print(os.path.dirname(nvidia.__file__))" 2>/dev/null || true)

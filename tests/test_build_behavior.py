@@ -10,8 +10,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tensorrt")
 def _install_fake_hf(monkeypatch, n_rows, label):
     """Fake huggingface_hub + pyarrow.parquet yielding n_rows all of one label (=> unbalanced)."""
     hf = types.ModuleType("huggingface_hub")
-    hf.HfApi = type("FakeApi", (), {"list_repo_files": lambda self, r, repo_type: ["a.parquet"]})
-    hf.hf_hub_download = lambda repo, fn, repo_type: "ignored"
+    # accept the pinned `revision` kwarg the builder now passes (finding #4)
+    hf.HfApi = type("FakeApi", (), {"list_repo_files": lambda self, r, repo_type, revision=None: ["a.parquet"]})
+    hf.hf_hub_download = lambda repo, fn, repo_type, revision=None: "ignored"
 
     class _Col:
         def __init__(self, v): self._v = v
@@ -43,3 +44,23 @@ def test_unbalanced_build_leaves_no_poison(monkeypatch, tmp_path):
     assert not out.exists(), "failed build must NOT publish a (poisoned) output dir"
     leftovers = list(tmp_path.glob("*.building*"))
     assert not leftovers, f"temp build dir must be cleaned up, found {leftovers}"
+
+
+def test_failed_rebuild_preserves_existing_good_set(monkeypatch, tmp_path):
+    """Finding #7: a failed rebuild must NOT destroy the existing known-good dataset, and must leave
+    no leftover backup/temp dirs behind."""
+    _install_fake_hf(monkeypatch, n_rows=30, label=0)   # unbalanced => build() will raise
+    import build_imagenet_subset as b
+
+    out = tmp_path / "inet_val"
+    out.mkdir()
+    (out / "val_map.txt").write_text("00000.JPEG 0\n")   # a "good" pre-existing dataset
+    (out / "00000.JPEG").write_text("data")
+
+    with pytest.raises(SystemExit):
+        b.build(str(out))
+
+    assert out.exists() and (out / "val_map.txt").read_text() == "00000.JPEG 0\n", \
+        "the existing good dataset must survive a failed rebuild"
+    assert not list(tmp_path.glob("*.building*")), "temp build dir must be cleaned up"
+    assert not list(tmp_path.glob("*.old.*")), "backup dir must not be left behind"

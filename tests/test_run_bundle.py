@@ -11,7 +11,13 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "scripts" / "run_bundle.sh"
 
-pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")
+# Skip on native Windows: run_bundle.sh is a POSIX script and the only bash on PATH is WSL's, which
+# receives Windows-style paths it can't resolve (exit 127). These run in CI on Linux and locally in
+# the WSL distro — the two POSIX environments where the script is actually used.
+pytestmark = pytest.mark.skipif(
+    os.name == "nt" or shutil.which("bash") is None,
+    reason="POSIX bash with matching paths required (runs in Linux CI / WSL, not native Windows)",
+)
 
 
 def _run(label, inner_cmd):
@@ -53,3 +59,29 @@ def test_label_is_sanitized():
     rc, m, _ = _run("a/b/../evil", "echo x; exit 0")
     assert rc == 0 and m is not None, "bundle must be created inside RESULTS_ROOT, not escape it"
     assert "/" not in m["label"], "path separators must be stripped from the label"
+
+
+def test_no_stale_trt_logs_attached():
+    """Finding #2 behavioral: a command that creates NO new TRT run dir must not have a pre-existing,
+    unrelated run's logs copied into its bundle."""
+    fake_bench = tempfile.mkdtemp(prefix="rb_bench_")
+    tmp_results = tempfile.mkdtemp(prefix="rb_res_")
+    try:
+        # Plant a pre-existing TRT run dir with a marker file, BEFORE the wrapped command runs.
+        preexisting = pathlib.Path(fake_bench) / "vision" / "runs" / "20200101-000000.aaaaaa"
+        preexisting.mkdir(parents=True)
+        (preexisting / "mlperf_log_summary.txt").write_text("STALE — must not be attached\n")
+
+        env = {**os.environ, "RESULTS_ROOT": tmp_results, "BENCH_ROOT": fake_bench}
+        # Wrap `true`: it creates no new run dir, so nothing under runs/ should be attached.
+        subprocess.run(["bash", str(BUNDLE), "stale", "--", "true"],
+                       cwd=ROOT, capture_output=True, text=True, env=env)
+        bundles = sorted(p for p in pathlib.Path(tmp_results).iterdir() if p.is_dir())
+        assert bundles, "a bundle dir should still be created"
+        b = bundles[-1]
+        attached = b / "tensorrt_run"
+        assert not attached.exists(), "no tensorrt_run/ should be attached when the command created no run dir"
+        assert (b / "tensorrt_run.note").exists(), "should note that no TRT run dir was created"
+    finally:
+        shutil.rmtree(fake_bench, ignore_errors=True)
+        shutil.rmtree(tmp_results, ignore_errors=True)

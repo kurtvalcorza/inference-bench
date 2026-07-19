@@ -15,10 +15,13 @@ later run would silently accept.
 
 Needs: pip install "huggingface_hub>=0.24,<1.0" pyarrow   # hub 1.x breaks transformers 4.48
 """
-import os, sys, shutil, tempfile
+import hashlib, os, sys, shutil, tempfile
 from collections import Counter
 
 REPO = "Tsomaros/Imagenet-1k_validation"        # class-sorted, 50/class
+# Pin the dataset revision (finding #4: an unpinned mutable HF dataset could change content under a
+# stable-looking val_map). Override with DATASET_REVISION to use a different snapshot deliberately.
+REVISION = os.environ.get("DATASET_REVISION", "55405c49dece42420e68ddd5f80174f19b29ebaf")
 
 
 def validate_counts(counts):
@@ -46,13 +49,17 @@ def build(out_dir):
     # unique temp sibling (same filesystem => atomic os.replace) so concurrent builds can't collide
     tmp = tempfile.mkdtemp(prefix=os.path.basename(out) + ".building.", dir=os.path.dirname(out) or ".")
 
-    files = sorted(f for f in HfApi().list_repo_files(REPO, repo_type="dataset") if f.endswith(".parquet"))
+    # Pin the revision on BOTH the file listing and every download, so the built subset is tied to
+    # one immutable dataset snapshot (finding #4).
+    files = sorted(f for f in HfApi().list_repo_files(REPO, repo_type="dataset", revision=REVISION)
+                   if f.endswith(".parquet"))
+    print(f"dataset {REPO}@{REVISION[:12]} — {len(files)} parquet shard(s)")
     g = k = 0
     counts = Counter()
     try:
         with open(os.path.join(tmp, "val_map.txt"), "w") as vm:
             for fn in files:
-                t = pq.read_table(hf_hub_download(REPO, fn, repo_type="dataset"))
+                t = pq.read_table(hf_hub_download(REPO, fn, repo_type="dataset", revision=REVISION))
                 for img, lab in zip(t.column("image").to_pylist(), t.column("label").to_pylist()):
                     if g % 10 == 0:               # every 10th row => 5 per class, all 1000 classes
                         b = img.get("bytes") if isinstance(img, dict) else None
@@ -68,20 +75,46 @@ def build(out_dir):
         if err:
             sys.exit("ERROR: " + err)
 
-        # Cross-check every val_map entry resolves to a real, non-empty file before publishing.
+        # Cross-check every val_map entry resolves to a real, non-empty file, and record a content
+        # manifest (sha256 of each image + label) so downstream bundles can attest to image CONTENT,
+        # not just the val_map (finding #4). A root hash over the sorted per-file lines gives one
+        # deterministic digest for the whole subset.
+        lines = []
         with open(os.path.join(tmp, "val_map.txt")) as f:
-            for ln in f:
-                name = ln.split()[0]
-                p = os.path.join(tmp, name)
-                if not (os.path.isfile(p) and os.path.getsize(p) > 0):
-                    sys.exit(f"ERROR: val_map references missing/empty image {name} — aborting.")
+            rows = [ln.split() for ln in f if ln.strip()]
+        for name, lab in rows:
+            p = os.path.join(tmp, name)
+            if not (os.path.isfile(p) and os.path.getsize(p) > 0):
+                sys.exit(f"ERROR: val_map references missing/empty image {name} — aborting.")
+            with open(p, "rb") as im:
+                h = hashlib.sha256(im.read()).hexdigest()
+            lines.append(f"{h}  {name}  {lab}")
+        lines.sort()
+        root = hashlib.sha256(("\n".join(lines) + "\n").encode()).hexdigest()
+        with open(os.path.join(tmp, "dataset_manifest.txt"), "w", encoding="utf-8") as mf:
+            mf.write(f"# {REPO}@{REVISION}\n# root sha256: {root}\n")
+            mf.write("\n".join(lines) + "\n")
+        print(f"content manifest root sha256: {root}")
     except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)    # never leave a partial temp dir behind
         raise
 
-    # Atomic-ish publish: replace OUT only now that TMP is complete and validated.
-    shutil.rmtree(out, ignore_errors=True)
-    os.replace(tmp, out)
+    # Atomic backup-and-rollback publish (finding #7): keep the existing good dataset until the swap
+    # succeeds. os.replace can't overwrite a non-empty dir on POSIX, so exchange via renames: move OUT
+    # aside, move TMP into place, then drop the backup. If the second rename fails, restore OUT.
+    backup = None
+    if os.path.exists(out):
+        backup = out + ".old." + os.path.basename(tmp).rsplit(".", 1)[-1]
+        os.replace(out, backup)               # atomic move of the known-good set out of the way
+    try:
+        os.replace(tmp, out)                  # atomic move of the validated set into place
+    except BaseException:
+        if backup is not None:
+            os.replace(backup, out)           # roll back to the known-good set
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup, ignore_errors=True)
     print(f"kept {k} images -> {out}")
 
 
