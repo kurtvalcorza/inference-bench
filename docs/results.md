@@ -8,8 +8,8 @@
 > config*, not MLPerf conformance. **Do not report these under the MLPerf label or use them for
 > procurement.** Background: [architecture.md](architecture.md#what-is-and-isnt-mlperf).
 >
-> They are also **point-in-time** numbers, not yet backed by immutable run bundles (see
-> [Provenance & caveats](#provenance--caveats) at the bottom) — laptop figures vary ±10% run-to-run.
+> They are also **point-in-time** numbers; bundles that back the "bundle-backed" rows are gitignored
+> (see [Provenance & caveats](#provenance--caveats) at the bottom) — laptop figures vary ±10% run-to-run.
 
 All numbers measured with torch **2.11.0+cu128**, TensorRT **11.1**. Laptop 5070 Ti figures vary
 ±10% run-to-run (thermal throttling); datacenter/Colab figures are stable.
@@ -33,19 +33,19 @@ xychart-beta
     title "ResNet-50 fp16 throughput, RTX 5070 Ti (img/s)"
     x-axis ["MLPerf ref", "eager", "compile", "MLPerf+TRT", "polygraphy", "raw TRT"]
     y-axis "img/s" 0 --> 5000
-    bar [552, 1873, 2982, 3100, 3965, 4774]
+    bar [552, 1873, 2982, 3652, 4125, 4774]
 ```
 
 Same model, same GPU — 8.6× from the unoptimized MLPerf reference (552) to a raw TensorRT engine
-(4,774). The MLPerf+TensorRT harness (3,100) trails raw TRT because its SUT is host-bound.
+(4,774). The MLPerf+TensorRT harness (3,652) trails raw TRT because its SUT is host-bound.
 
 ```text
 ResNet-50 fp16 throughput (img/s), RTX 5070 Ti
   MLPerf reference ███                          552
   eager PyTorch    ███████████                  1,873
   torch.compile    █████████████████            2,982
-  MLPerf+TensorRT  ██████████████████           3,100
-  polygraphy       ███████████████████████      3,965
+  MLPerf+TensorRT  █████████████████████        3,652
+  polygraphy       ████████████████████████     4,125
   raw TensorRT     ████████████████████████████ 4,774
 ```
 
@@ -156,7 +156,7 @@ The GPU (TensorRT) is **~175×** the CPU on ResNet-50 — why inference runs on 
 
 | Benchmark | Metric | RTX 5070 Ti | Colab T4 |
 |---|---|---|---|
-| Polygraphy (trtexec equiv) — ResNet-50 fp16 bs128 | throughput | ~3,965 img/s | — |
+| Polygraphy (trtexec equiv) — ResNet-50 fp16 bs128 | throughput | ~4,125 img/s | — |
 | llama.cpp llama-bench — TinyLlama-1.1B Q4, **GPU** | prefill / decode | 20,842 / 434 t/s‡ | N/A† |
 | llama.cpp llama-bench — TinyLlama-1.1B Q4, **CPU** (24t) | prefill / decode | 410 / 27.2 t/s | — |
 | AI-Benchmark (ETH) | AI Score | run on T4/CPU (TF ≠ Blackwell) | |
@@ -177,7 +177,7 @@ session lifetime, even with `-DGGML_CUDA_FORCE_CUBLAS=ON` and pinned `sm_75`. Ge
 | Path | img/s | What it measures |
 |---|---|---|
 | MLPerf reference (PyTorch) | 552 | unoptimized reference harness |
-| LoadGen + TensorRT (this suite) | ~3,100 | LoadGen + optimized backend (short config) |
+| LoadGen + TensorRT (this suite) | ~3,652 | LoadGen + optimized backend (short config) |
 | Raw microbench (TensorRT) | 4,774 | GPU ceiling, no harness/host overhead |
 
 The gap between the middle and bottom rows is the reference-grade SUT's host overhead
@@ -189,11 +189,12 @@ The gap between the middle and bottom rows is the reference-grade SUT's host ove
 
 Read this before trusting any number above.
 
-- **Point-in-time, not immutable.** These were recorded across several sessions on a thermally
-  variable laptop and a shared Colab T4. They are **not yet backed by immutable run bundles**
-  (raw logs + command + commit + dataset/model checksums + env versions + exit status). A
-  `scripts/run_bundle.sh` wrapper now emits such a bundle for new runs — prefer regenerating over
-  citing these.
+- **Point-in-time, mostly not committed as artifacts.** These were recorded across several sessions
+  on a thermally variable laptop and a shared Colab T4. The 5070 Ti figures marked "bundle-backed"
+  (LoadGen+TensorRT, polygraphy, llama-bench) were verified against a `scripts/run_bundle.sh` bundle
+  on the author's machine, but **bundles are gitignored**, so a reader can't independently check them
+  unless one is published (`git add -f` or a release). The rest are older point-in-time numbers.
+  Prefer regenerating a bundle over citing this table.
 - **The checked-in notebooks are not the source of every number.** Some notebook cells were re-run
   out of band, some `*_output.ipynb` performance/accuracy cells are empty, and a few figures come
   from later/cached runs. Concretely: the reference ResNet Offline figure is quoted as **552**

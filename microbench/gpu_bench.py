@@ -36,6 +36,10 @@ def _median(vals):
     import statistics
     return statistics.median(vals)
 
+def _stats(vals):   # median headline + spread over REPEATS trials (retain the spread in JSON)
+    import statistics
+    return {"median": round(statistics.median(vals), 1), "min": round(min(vals), 1), "max": round(max(vals), 1)}
+
 def timed(fn, iters, warmup=10):
     for _ in range(warmup): fn()
     sync(); t0 = time.perf_counter()
@@ -63,7 +67,8 @@ for label, dt, tf32 in [("fp32", torch.float32, False), ("tf32", torch.float32, 
     best = 0.0; curve = {}
     for n in MATMUL_SIZES:
         try:
-            v = matmul_tflops(dt, tf32=tf32, n=n); curve[n] = round(v, 1); best = max(best, v)
+            v = _median([matmul_tflops(dt, tf32=tf32, n=n) for _ in range(REPEATS)])  # median of REPEATS
+            curve[n] = round(v, 1); best = max(best, v)
         except Exception:
             curve[n] = None
         torch.cuda.empty_cache()
@@ -71,13 +76,12 @@ for label, dt, tf32 in [("fp32", torch.float32, False), ("tf32", torch.float32, 
     res["tflops_curve"][label] = curve
     print(f"   {label:5s}: peak {best:8.1f} TFLOPS   (by n: {curve})")
 
-print("\n[2] Memory bandwidth (DtoD copy, 1 GB)")
+print(f"\n[2] Memory bandwidth (DtoD copy, 1 GB), median of {REPEATS}")
 try:
     n = 256 * 1024 * 1024  # fp32 elements = 1 GB
     x = torch.empty(n, device=dev, dtype=torch.float32); y = torch.empty_like(x)
-    dt = timed(lambda: y.copy_(x), 50)
-    bw = 2 * x.numel() * 4 / dt / 1e9  # read+write
-    res["bandwidth_GBs"] = round(bw, 1); print(f"   {bw:8.1f} GB/s")
+    s = _stats([2 * x.numel() * 4 / timed(lambda: y.copy_(x), 50) / 1e9 for _ in range(REPEATS)])
+    res["bandwidth_GBs"] = s; print(f"   {s['median']:8.1f} GB/s  (min {s['min']}, max {s['max']})")
     del x, y; torch.cuda.empty_cache()
 except Exception as e:
     res["bandwidth_GBs"] = None; print("   ERR", e)
@@ -131,21 +135,24 @@ print(f"\n[3] ResNet-50 fp16 inference throughput (peak over batches {BATCHES})"
 res["resnet50_fp16_imgs"] = {}   # peak img/s per tier
 res["resnet50_curve"] = {}       # img/s per batch per tier
 for mode in ["eager", "compile", "tensorrt"]:
-    best = 0.0; curve = {}
+    best = 0.0; best_stats = None; curve = {}
     for bs in BATCHES:
         try:
             fn = (lambda: resnet_tensorrt(bs=bs)) if mode == "tensorrt" else (lambda: resnet_throughput(mode, bs=bs))
-            v = _median([fn() for _ in range(REPEATS)])   # median of REPEATS warm trials
-            curve[bs] = round(v); best = max(best, v)
+            s = _stats([fn() for _ in range(REPEATS)])    # median + min/max over REPEATS warm trials
+            curve[bs] = round(s["median"])
+            if s["median"] > best:
+                best = s["median"]; best_stats = s
         except Exception as e:
             curve[bs] = None
             if bs == BATCHES[0]:  # first batch failed -> tier unsupported
                 print(f"   {mode:9s}: skipped ({str(e)[:70]})")
         torch.cuda.empty_cache()
-    res["resnet50_fp16_imgs"][mode] = round(best) if best else None
+    res["resnet50_fp16_imgs"][mode] = best_stats   # {median,min,max} of the peak batch (or None)
     res["resnet50_curve"][mode] = curve
-    if best:
-        print(f"   {mode:9s}: peak {best:8.0f} img/s   (by batch: {curve})")
+    if best_stats:
+        print(f"   {mode:9s}: peak {best_stats['median']:8.0f} img/s  "
+              f"(min {best_stats['min']}, max {best_stats['max']}; by batch: {curve})")
 
 print("\n===== JSON =====")
 print(json.dumps(res, indent=2))
