@@ -1,0 +1,4 @@
+f228ff558474936fdd37767f2c1da67b25aab91e34bba83552f5ffcb09d46ce2  /root/mlperf/vision/resnet50_fp16_dyn.onnx
+c69dec1927fdb171864112751bc84332495abc9a6bdc8682dca3568b193587e5  /root/mlperf/vision/inet_val/val_map.txt
+9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0  /root/mlperf/llm/tinyllama.gguf
+dac946e67136e7963900369d25143a7a75262cfc7f8e68d0bb4fcbfe6b6cf2d9  (root sha256 of all inet_val/*.JPEG)

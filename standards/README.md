@@ -14,15 +14,16 @@ other widely-used benchmarks/tools, added for broader coverage.
 
 | Benchmark | Metric | Value |
 |---|---|---|
-| Polygraphy — ResNet-50 fp16, batch 128 | latency / throughput | 31.03 ms → **~4,125 img/s**§ |
-| llama-bench — TinyLlama-1.1B Q4, **CUDA** | prefill / decode | **20,842 / 434 t/s**† |
+| Polygraphy — ResNet-50 fp16, batch 128 | latency / throughput | 38.09 ms → **~3,361 img/s**§ |
+| llama-bench — TinyLlama-1.1B Q4, **CUDA** @ b10068 | prefill / decode | **17,693 / 313 t/s**† |
 | llama-bench — TinyLlama-1.1B Q4, **CPU** (24t) | prefill / decode | 410 / 27.2 t/s |
 
-† Bundle-backed run (arch auto-detected `120 → 120a` Blackwell). Prefill is noisy (±~3,700 t/s ≈ 17%
-run-to-run); decode is stable (±43). An earlier run measured 19,082 / 463 — same order, within spread.
-§ Bundle-backed run (avg 31.03 ms over 200 iters, 16 s engine build). An earlier run measured
-32.28 ms → ~3,965 img/s — within run-to-run variance.
-GPU vs CPU on the LLM: ~50× prefill, ~16× decode.
+† **Committed** bundle `results/bundles/20260719T131317Z-llama-5070ti-b10068.TLuwNJ/` (`repo_dirty:
+no`, model SHA-256-verified, pinned `LLAMA_REF=b10068`, arch `120`). Measured in a thermally throttled
+session; prefill is also inherently noisy (±~2,000 t/s). Cooler earlier runs: ~19–21k / ~434–463 t/s.
+§ **Committed** bundle `results/bundles/20260719T131444Z-polygraphy-5070ti.HgydkD/` (`repo_dirty: no`,
+avg 38.09 ms over 200 iters). Cooler earlier runs: ~32 ms → ~3,965–4,125 img/s.
+GPU vs CPU on the LLM: ~43× prefill, ~12× decode.
 
 **Verified model hash** (TinyLlama-1.1B-Chat-v1.0 Q4_K_M, TheBloke GGUF), enforce it with:
 ```bash
@@ -33,7 +34,7 @@ GGUF_SHA256=9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0 bas
 build doesn't finish within the session lifetime (even with `sm_75` + `-DGGML_CUDA_FORCE_CUBLAS=ON`).
 Use Colab Pro or a real T4 box.
 
-Context: Polygraphy's ~4,125 img/s sits between our host-bound MLPerf-TRT SUT (~3,210) and the raw
+Context: Polygraphy's ~3,361 img/s (committed bundle) sits between our host-bound MLPerf-TRT SUT (~3,210) and the raw
 microbench ceiling (4,774) — it keeps tensors on-GPU (less host overhead than the MLPerf harness) but
 isn't the LoadGen harness.
 

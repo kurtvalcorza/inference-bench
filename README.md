@@ -98,8 +98,8 @@ figures vary ±10% run-to-run. Provenance and caveats: [docs/results.md](docs/re
 | Whisper (custom loop, no LoadGen) — WER | ~3.5–5% | 2.16% |
 | microbench ResNet-50 fp16 (TensorRT) | 4,774 img/s | 1,945 img/s |
 | microbench FP16 / BF16 TFLOPS | 42.7 / 51.4 | 22.7 / 2.1 |
-| Polygraphy (trtexec) ResNet-50 fp16 bs128 | ~4,125 img/s | — |
-| llama-bench TinyLlama-1.1B Q4 (GPU) | 20,842 / 434 t/s | — |
+| Polygraphy (trtexec) ResNet-50 fp16 bs128 | ~3,361 img/s (committed bundle; ~4,125 cooler) | — |
+| llama-bench TinyLlama-1.1B Q4 (GPU) @ b10068 | 17,693 / 313 t/s (committed bundle) | — |
 | llama-bench TinyLlama-1.1B Q4 (CPU) | 410 / 27 t/s | — |
 
 Full tables (incl. CPU, latency percentiles, per-batch curves) in [docs/results.md](docs/results.md).

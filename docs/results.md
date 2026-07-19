@@ -8,11 +8,13 @@
 > config*, not MLPerf conformance. **Do not report these under the MLPerf label or use them for
 > procurement.** Background: [architecture.md](architecture.md#what-is-and-isnt-mlperf).
 >
-> They are also **point-in-time** numbers; bundles that back the "bundle-backed" rows are gitignored
-> (see [Provenance & caveats](#provenance--caveats) at the bottom) — laptop figures vary ±10% run-to-run.
+> They are also **point-in-time** numbers (see [Provenance & caveats](#provenance--caveats) at the
+> bottom) — laptop figures vary **±15–20%** run-to-run with thermal state, and SingleStream latency
+> more (a hot session measured p90 4.6–7.7 ms). The three committed 5070 Ti bundles came from a hot
+> session and sit at the low end of that spread.
 
 All numbers measured with torch **2.11.0+cu128**, TensorRT **11.1**. Laptop 5070 Ti figures vary
-±10% run-to-run (thermal throttling); datacenter/Colab figures are stable.
+**±15–20%** run-to-run (thermal throttling), single-stream latency more; datacenter/Colab figures are stable.
 
 ## Hardware
 
@@ -33,11 +35,14 @@ xychart-beta
     title "ResNet-50 fp16 throughput, RTX 5070 Ti (img/s)"
     x-axis ["MLPerf ref", "eager", "compile", "MLPerf+TRT", "polygraphy", "raw TRT"]
     y-axis "img/s" 0 --> 5000
-    bar [552, 1873, 2982, 3210, 4125, 4774]
+    bar [552, 1873, 2982, 3210, 3361, 4774]
 ```
 
-Same model, same GPU — 8.6× from the unoptimized MLPerf reference (552) to a raw TensorRT engine
-(4,774). The MLPerf+TensorRT harness (3,210) trails raw TRT because its SUT is host-bound.
+Same model, same GPU — ~8.6× from the unoptimized MLPerf reference (552) to a raw TensorRT engine.
+The MLPerf+TensorRT harness (3,210) trails polygraphy (3,361) and raw TRT because its SUT is
+host-bound. **Caveat:** `MLPerf+TRT` and `polygraphy` are today's committed-bundle numbers on a
+thermally throttled laptop; `eager`/`compile`/`raw TRT` are from an earlier cooler microbench session
+(raw TRT would also be lower today), so read the gaps as approximate.
 
 ```text
 ResNet-50 fp16 throughput (img/s), RTX 5070 Ti
@@ -45,7 +50,7 @@ ResNet-50 fp16 throughput (img/s), RTX 5070 Ti
   eager PyTorch    ███████████                  1,873
   torch.compile    █████████████████            2,982
   MLPerf+TensorRT  ███████████████████          3,210
-  polygraphy       ████████████████████████     4,125
+  polygraphy       ████████████████████         3,361
   raw TensorRT     ████████████████████████████ 4,774
 ```
 
@@ -73,8 +78,8 @@ MLPerf TensorRT SingleStream p90 latency (ms, lower=better)
 
 ```text
 llama.cpp TinyLlama-1.1B decode (tokens/s), 5070 Ti
-  GPU  ████████████████████████████ 463
-  CPU  ██                           27  (17x; prefill 19,082 vs 410 = 47x)
+  GPU  ████████████████████████████ 313
+  CPU  ██                           27  (12x; prefill 17,693 vs 410 = 43x)
 
 ResNet-50 (img/s), 5070 Ti TensorRT vs 24-thread CPU
   GPU  ████████████████████████████ 4,774
@@ -160,16 +165,21 @@ The GPU (TensorRT) is **~175×** the CPU on ResNet-50 — why inference runs on 
 
 | Benchmark | Metric | RTX 5070 Ti | Colab T4 |
 |---|---|---|---|
-| Polygraphy (trtexec equiv) — ResNet-50 fp16 bs128 | throughput | ~4,125 img/s | — |
-| llama.cpp llama-bench — TinyLlama-1.1B Q4, **GPU** | prefill / decode | 20,842 / 434 t/s‡ | N/A† |
+| Polygraphy (trtexec equiv) — ResNet-50 fp16 bs128 | throughput | ~3,361 img/s‡ | — |
+| llama.cpp llama-bench — TinyLlama-1.1B Q4, **GPU** | prefill / decode | 17,693 / 313 t/s‡ | N/A† |
 | llama.cpp llama-bench — TinyLlama-1.1B Q4, **CPU** (24t) | prefill / decode | 410 / 27.2 t/s | — |
 | AI-Benchmark (ETH) | AI Score | run on T4/CPU (TF ≠ Blackwell) | |
 | MLPerf Client | tokens/s, TTFT | native-Windows app (see doc) | |
 
-GPU vs CPU on the LLM (5070 Ti): ~51× prefill, ~16× decode.
+GPU vs CPU on the LLM (5070 Ti): ~43× prefill, ~12× decode.
 
-‡ Bundle-backed run, SHA-256-verified model, arch auto-detected `120 → 120a` (Blackwell). Prefill is
-noisy (±~3,700 t/s ≈ 17% run-to-run); decode stable (±43). An earlier run measured 19,082 / 463.
+‡ **Committed** bundles (a reader can check the raw logs):
+`results/bundles/20260719T131317Z-llama-5070ti-b10068.TLuwNJ/` (llama-bench, model SHA-256-verified,
+pinned `LLAMA_REF=b10068`, arch auto-detected `120`) and
+`results/bundles/20260719T131444Z-polygraphy-5070ti.HgydkD/` (polygraphy) — both `repo_dirty: no`.
+These were measured in a **thermally throttled** session; cooler earlier runs of the same benchmarks
+were higher (llama prefill/decode ~19–21k / ~434–463 t/s, polygraphy ~4,125 img/s), so treat these as
+the checkable low end of a ±15–20% laptop spread. llama prefill is also inherently noisy (±~2,000 t/s).
 
 † **T4 llama-bench GPU: not obtained on free Colab.** Free Colab T4 VMs have only **2 vCPUs**;
 llama.cpp's CUDA build (many flash-attention / kernel template instances) doesn't finish within the
@@ -193,19 +203,19 @@ The gap between the middle and bottom rows is the reference-grade SUT's host ove
 
 Read this before trusting any number above.
 
-- **Point-in-time; one bundle is committed, the rest are not.** These were recorded across several
-  sessions on a thermally variable laptop and a shared Colab T4. The LoadGen+TensorRT run is now
-  backed by a **committed** bundle (`results/bundles/20260719T122957Z-trt-5070ti-hardened.BnXBbN/`,
-  force-added past the `.gitignore`) so a reader can independently check its raw logs, env, and asset
-  hashes. The other "bundle-backed" 5070 Ti figures (polygraphy, llama-bench) were verified against a
-  local `scripts/run_bundle.sh` bundle but **those bundles are gitignored**; regenerate one to check
-  them. The remaining figures are older point-in-time numbers — prefer regenerating a bundle over
-  citing this table.
+- **Point-in-time; the three 5070 Ti optimized runs are committed as bundles.** These were recorded
+  across several sessions on a thermally variable laptop and a shared Colab T4. The LoadGen+TensorRT,
+  polygraphy, and llama-bench (@ b10068) runs are each backed by a **committed** bundle under
+  `results/bundles/…` (force-added past the `.gitignore`, all `repo_dirty: no`) so a reader can check
+  the raw logs, env, and asset hashes. The committed 5070 Ti figures came from a **thermally
+  throttled** session and sit at the low end of the ±15–20% laptop spread (earlier cooler runs were
+  higher — noted inline). The microbench (eager/compile/raw-TRT) and Colab figures are older
+  point-in-time numbers — prefer regenerating a bundle over citing this table.
 - **The checked-in notebooks are not the source of every number.** Some notebook cells were re-run
   out of band, some `*_output.ipynb` performance/accuracy cells are empty, and a few figures come
   from later/cached runs. Concretely: the reference ResNet Offline figure is quoted as **552**
   (a later run) while one checked-in notebook cell shows **472**; both are the same unoptimized
-  reference path on the 5070 Ti and differ within the ±10% laptop spread. Treat single-run numbers
+  reference path on the 5070 Ti and differ within the ±15–20% laptop spread. Treat single-run numbers
   as approximate.
 - **Subsets, not full validation sets.** Accuracy (top-1, f1, WER) is over small subsets, so it is
   only a sanity indicator, not a conformant accuracy result.

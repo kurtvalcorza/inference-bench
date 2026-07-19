@@ -16,13 +16,16 @@ these before use (and refuse to proceed / extract on a mismatch). The harness it
 | `tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf` | TheBloke HF (GGUF) | `9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0` |
 
 Notes:
-- **`imagenette2-320.tgz` is not yet pinned.** Re-hashing the archive requires re-downloading it, and
-  fast.ai's S3 was throttling to ~1.6 KB/s this session (the ~325 MB download would not complete). The
-  resnet notebook and `trt_mlperf_run.sh` therefore run it in **record mode** (download → print hash →
-  extract) and enforce only when `IMAGENETTE_SHA256` is set. To pin it: run once on a good connection,
-  copy the printed hash here and into your env (`IMAGENETTE_SHA256=<hash>`). Every *other* asset above
-  is hash-enforced. The representative 1000-class subset is the checksum-independent alternative
-  (built + validated by `tensorrt/build_imagenet_subset.py`).
+- **`imagenette2-320.tgz` is not yet pinned** — fast.ai's S3 endpoint is unreliable for this asset.
+  Re-hashing needs a full re-download of the ~325 MB archive, and repeated attempts either throttle to
+  a crawl (the download never completes) or return a **~350 KB error/redirect page instead of the
+  tarball** (whose hash would be meaningless — so it is deliberately *not* recorded here rather than
+  pin a bogus value). The resnet notebook and `trt_mlperf_run.sh` therefore run it in **record mode**
+  (download → print hash → extract) and enforce only when `IMAGENETTE_SHA256` is set. To pin it: fetch
+  once from a working mirror, sanity-check the size (~325 MB, gzip magic `1f 8b`), then copy the
+  printed hash here and into your env (`IMAGENETTE_SHA256=<hash>`). Every *other* asset above is
+  hash-enforced. The representative 1000-class subset is the checksum-independent alternative (built +
+  validated + content-manifested by `tensorrt/build_imagenet_subset.py`).
 - **whisper-large-v3** weights are fetched by `openai-whisper` (`whisper.load_model('large-v3')`),
   which verifies its own built-in per-model SHA-256 — no extra check needed.
 - **torchvision ResNet-50** downloaded via `torchvision.models.resnet50(weights=...)` is hash-checked

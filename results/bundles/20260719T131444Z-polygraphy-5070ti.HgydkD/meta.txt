@@ -1,0 +1,8 @@
+label: polygraphy-5070ti
+utc: 20260719T131444Z
+host: Kurt-Valcorza
+bench_root: /root/mlperf
+repo_commit: 4b905e153dc88d6f46cec2b867c446263164b771
+repo_dirty: no
+os: Linux Kurt-Valcorza 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+python: Python 3.12.3

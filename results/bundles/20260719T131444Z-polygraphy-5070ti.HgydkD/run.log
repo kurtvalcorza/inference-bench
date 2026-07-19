@@ -1,0 +1,27 @@
+polygraphy: /root/mlperf/vision/resnet50_fp16_dyn.onnx  batch=128
+[I] RUNNING | Command: /root/mlperf/venv/bin/polygraphy run /root/mlperf/vision/resnet50_fp16_dyn.onnx --trt --input-shapes x:[128,3,224,224] --warm-up 25 --iterations 200
+[I] Will generate inference input data according to provided TensorMetadata: {x [shape=(128, 3, 224, 224)]}
+[I] TF32 is disabled by default. Turn on TF32 for better performance with minor accuracy differences.
+[I] trt-runner-N0-07/19/26-21:14:45     | Activating and starting inference
+[I] Configuring with profiles:[
+        Profile 0:
+            {x [min=[128, 3, 224, 224], opt=[128, 3, 224, 224], max=[128, 3, 224, 224]]}
+    ]
+[I] Building engine with configuration:
+    Flags                  | [STRONGLY_TYPED]
+    Engine Capability      | EngineCapability.STANDARD
+    Memory Pools           | [WORKSPACE: 12226.56 MiB, TACTIC_DRAM: 12226.56 MiB, TACTIC_SHARED_MEMORY: 1024.00 MiB]
+    Tactic Sources         | [EDGE_MASK_CONVOLUTIONS, JIT_CONVOLUTIONS]
+    Profiling Verbosity    | ProfilingVerbosity.DETAILED
+[I] Finished engine building in 18.710 seconds
+[I] trt-runner-N0-07/19/26-21:14:45     | Running 25 warm-up run(s)
+[I] trt-runner-N0-07/19/26-21:14:45     | Finished 25 warm-up run(s)
+[I] trt-runner-N0-07/19/26-21:14:45    
+    ---- Inference Input(s) ----
+    {x [dtype=float16, shape=(128, 3, 224, 224)]}
+[I] trt-runner-N0-07/19/26-21:14:45    
+    ---- Inference Output(s) ----
+    {y [dtype=float16, shape=(128, 1000)]}
+[I] trt-runner-N0-07/19/26-21:14:45     | Completed 200 iteration(s) in 7618 ms | Average inference time: 38.09 ms.
+[I] PASSED | Runtime: 56.327s | Command: /root/mlperf/venv/bin/polygraphy run /root/mlperf/vision/resnet50_fp16_dyn.onnx --trt --input-shapes x:[128,3,224,224] --warm-up 25 --iterations 200
+throughput = BS / (Average inference time).  e.g. 128 / 0.03228s = ~3965 img/s
