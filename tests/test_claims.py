@@ -41,3 +41,20 @@ def test_whisper_documented_as_not_loadgen():
     """Whisper genuinely uses no LoadGen — the docs must say so (finding #1 core)."""
     arch = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8", errors="ignore").lower()
     assert "no loadgen" in arch or "not even loadgen" in arch or "custom loop" in arch
+
+
+def test_notebooks_have_no_official_mlperf_overclaims():
+    """The reference notebooks (markdown cells) must not re-acquire 'official/real MLPerf' claims."""
+    import json
+    banned = ("official mlperf", "real mlperf", "official mlcommons")
+    offenders = []
+    for nb in ROOT.glob("reference/**/*.ipynb"):
+        data = json.loads(nb.read_text(encoding="utf-8", errors="ignore"))
+        for cell in data.get("cells", []):
+            if cell.get("cell_type") != "markdown":
+                continue
+            for line in "".join(cell.get("source", [])).splitlines():
+                low = line.lower()
+                if any(b in low for b in banned) and not any(n in low for n in ("not ", "n't", "inspired", "unofficial")):
+                    offenders.append(f"{nb.relative_to(ROOT)}: {line.strip()}")
+    assert not offenders, "Notebook 'official/real MLPerf' overclaims:\n" + "\n".join(offenders)

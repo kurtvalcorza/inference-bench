@@ -18,16 +18,17 @@ for optimized hardware numbers see [`../tensorrt/`](../tensorrt).
 - **`local/`** — Jupyter notebooks that run in the `mlperf` WSL distro (local paths, `%pip` cells,
   venv-activated bash, Blackwell math-SDP guard, all harness fixes baked in).
 - **`colab/`** — the same benchmarks as Colab notebooks, runnable headless via `google-colab-cli`.
-  `*_output.ipynb` are executed copies with T4 outputs baked in.
+  `*_output.ipynb` are executed copies with T4 outputs baked in (**pre-hardening snapshots** — run
+  the non-`_output` source for the pinned/checksum-verified version).
 
 Running instructions: [../docs/user-guide.md](../docs/user-guide.md#3-mlperf-reference-implementations-bert--resnet-50--whisper).
 Fixes explained: [../docs/gotchas.md](../docs/gotchas.md).
 
-> **⚠️ Supply-chain caveat — these notebooks are NOT hardened.** Unlike the pinned/verified scripts in
-> [`../tensorrt/`](../tensorrt) and [`../standards/`](../standards), the reference notebooks still
-> clone upstream at a floating revision, `pip install` unpinned packages, download models/archives
-> without checksum verification, and load the ResNet checkpoint with `torch.load(weights_only=False)`
-> (which can execute arbitrary code from a tampered file). They also commonly run **as root** in the
-> WSL distro. Only run them against sources you trust. For a reproducible, checksum-verified path use
-> `tensorrt/trt_mlperf_run.sh` (pinned harness `INFERENCE_REF`, `weights_only=True` exporter) instead.
-> Hardening the notebooks themselves is tracked as future work.
+> **Supply-chain hardening.** The **`local/`** notebooks are hardened: they pin the harness to
+> `mlcommons/inference@da738a5`, pin package versions, and **SHA-256-verify every downloaded model /
+> dataset** against [CHECKSUMS.md](CHECKSUMS.md) before use (the ResNet checkpoint tries
+> `weights_only=True` first, and is only loaded because it's verified). The one exception is the
+> Imagenette archive, which runs in record-mode until pinned (see CHECKSUMS.md). The **`colab/`**
+> notebooks are hardened the same way. Notebooks still commonly run **as root** in the WSL distro, so
+> run them against sources you trust. The fully checksum-enforced path remains
+> `tensorrt/trt_mlperf_run.sh`.
