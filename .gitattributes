@@ -2,3 +2,7 @@
 # core.autocrlf setting (a CRLF shebang breaks bash with a \r error).
 *.sh   text eol=lf
 *.py   text eol=lf
+# Notebooks are JSON stored LF in the index; pin the working tree to LF too so a
+# Windows checkout (autocrlf) doesn't show every line as a phantom CRLF diff, and
+# so run-bundle provenance isn't spuriously marked repo-dirty.
+*.ipynb text eol=lf
