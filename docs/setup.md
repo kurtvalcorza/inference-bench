@@ -24,6 +24,37 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 ls -l /dev/dxg            # present => WSL GPU access
 ```
 
+### Native Linux instead (datacenter A100/H200 / work box) — skip WSL
+
+On a real Linux box (the likely home of an A100/H200) there is **no WSL step** — Section 1 above is
+Windows-only. Just verify the driver and go straight to Section 2:
+
+```bash
+nvidia-smi --query-gpu=name,compute_cap,memory.total,driver_version --format=csv
+```
+
+The scripts don't assume WSL or `root` — they honour these env vars (defaults preserve the laptop's
+`/root/mlperf` layout, so nothing changes there):
+
+| Var | Purpose | Default |
+|---|---|---|
+| `BENCH_VENV` | venv to activate | `/root/mlperf/venv` (skipped if absent → uses current env) |
+| `BENCH_ROOT` | asset/data/build root | `/root/mlperf` if it exists, else `$HOME/inference-bench-data` |
+| `INFERENCE_REPO` | mlcommons/inference clone | `$BENCH_ROOT/inference` (auto-cloned) |
+| `CUDA_ARCH` | llama.cpp CUDA arch | `native` (auto: A100=80, H200=90) |
+
+So a delegate typically runs, from the repo root:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision
+export BENCH_ROOT="$HOME/inference-bench-data"     # BENCH_VENV unset => uses this active venv
+python microbench/gpu_bench.py                      # portable, no other setup
+bash   tensorrt/trt_mlperf_run.sh                   # self-bootstraps harness + ONNX + data subset
+```
+
+See [DELEGATION.md](../DELEGATION.md) for the full hand-off checklist.
+
 ## 2. Base toolchain + Python venv
 
 ```bash
