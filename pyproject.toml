@@ -1,0 +1,24 @@
+[tool.ruff]
+line-length = 130
+# Notebooks are executed artifacts (baked-in cell outputs, intentional one-liners),
+# not maintained source — don't lint them.
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+# The benchmark scripts intentionally use a compact one-line style (grouped imports,
+# `def run(): ...`, `a, b = ...; ...`) and terse math names (a, b, m, x, dt). Keep the
+# correctness checks (F, most E/W); drop the purely-stylistic ones.
+ignore = [
+    "E401",  # multiple imports on one line  (import time, json, os)
+    "E402",  # import not at top             (sys.path shim in tests / after guards)
+    "E701",  # multiple statements (colon)   (def run(): m(x))
+    "E702",  # multiple statements (semicolon)
+    "E731",  # lambda assignment
+    "E741",  # ambiguous var name            (l, I in short numeric code)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# ruff false-positive: lambdas here close over locals defined on the preceding line
+# (verified running on-GPU); F821 mis-reports them as undefined.
+"microbench/gpu_bench.py" = ["F821"]

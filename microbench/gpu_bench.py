@@ -2,7 +2,7 @@
 """Portable GPU hardware benchmark: raw compute (TFLOPS), memory bandwidth,
 and ResNet-50 fp16 inference throughput (eager / torch.compile / TensorRT).
 Runs on any CUDA GPU. Usage: python gpu_bench.py"""
-import time, json, sys, os, platform
+import time, json, os, platform
 
 import torch
 # Blackwell sm_120 guard (harmless elsewhere)
@@ -51,7 +51,8 @@ def matmul_tflops(dtype, tf32=False, n=8192, iters=20):
     del a, b; torch.cuda.empty_cache()
     return 2 * n**3 / dt / 1e12
 
-print(f"=== {name} | sm_{cap[0]}{cap[1]} | {res['vram_GB']} GB | {props.multi_processor_count} SMs | torch {torch.__version__} ===")
+print(f"=== {name} | {res['capability']} | {res['vram_GB']} GB | {res['sms']} SMs")
+print(f"    torch {torch.__version__} | CUDA {res['cuda']} | cuDNN {res['cudnn']} | median of {REPEATS} ===")
 # Sweep matrix sizes so big GPUs (A100/H200) reach peak; override e.g. MATMUL_SIZES=16384,24576,32768
 MATMUL_SIZES = [int(s) for s in os.environ.get("MATMUL_SIZES", "8192,16384").split(",")]
 print(f"\n[1] Peak matmul TFLOPS (sweep n={MATMUL_SIZES})")
@@ -63,7 +64,7 @@ for label, dt, tf32 in [("fp32", torch.float32, False), ("tf32", torch.float32, 
     for n in MATMUL_SIZES:
         try:
             v = matmul_tflops(dt, tf32=tf32, n=n); curve[n] = round(v, 1); best = max(best, v)
-        except Exception as e:
+        except Exception:
             curve[n] = None
         torch.cuda.empty_cache()
     res["tflops"][label] = round(best, 1) if best else None
