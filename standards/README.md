@@ -15,10 +15,17 @@ other widely-used benchmarks/tools, added for broader coverage.
 | Benchmark | Metric | Value |
 |---|---|---|
 | Polygraphy — ResNet-50 fp16, batch 128 | latency / throughput | 32.28 ms → **~3,965 img/s** |
-| llama-bench — TinyLlama-1.1B Q4, **CUDA** | prefill / decode | **19,082 / 463 t/s** |
+| llama-bench — TinyLlama-1.1B Q4, **CUDA** | prefill / decode | **20,842 / 434 t/s**† |
 | llama-bench — TinyLlama-1.1B Q4, **CPU** (24t) | prefill / decode | 410 / 27.2 t/s |
 
-GPU vs CPU on the LLM: ~46× prefill, ~17× decode. (The GPU build compiled for sm_120 / Blackwell.)
+† Bundle-backed run (arch auto-detected `120 → 120a` Blackwell). Prefill is noisy (±~3,700 t/s ≈ 17%
+run-to-run); decode is stable (±43). An earlier run measured 19,082 / 463 — same order, within spread.
+GPU vs CPU on the LLM: ~50× prefill, ~16× decode.
+
+**Verified model hash** (TinyLlama-1.1B-Chat-v1.0 Q4_K_M, TheBloke GGUF), enforce it with:
+```bash
+GGUF_SHA256=9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0 bash standards/llama_bench.sh
+```
 
 **Colab T4 llama-bench GPU: not obtained** — free Colab T4 VMs have only 2 vCPUs, so llama.cpp's CUDA
 build doesn't finish within the session lifetime (even with `sm_75` + `-DGGML_CUDA_FORCE_CUBLAS=ON`).

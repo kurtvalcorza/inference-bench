@@ -157,12 +157,15 @@ The GPU (TensorRT) is **~175×** the CPU on ResNet-50 — why inference runs on 
 | Benchmark | Metric | RTX 5070 Ti | Colab T4 |
 |---|---|---|---|
 | Polygraphy (trtexec equiv) — ResNet-50 fp16 bs128 | throughput | ~3,965 img/s | — |
-| llama.cpp llama-bench — TinyLlama-1.1B Q4, **GPU** | prefill / decode | 19,082 / 463 t/s | N/A† |
+| llama.cpp llama-bench — TinyLlama-1.1B Q4, **GPU** | prefill / decode | 20,842 / 434 t/s‡ | N/A† |
 | llama.cpp llama-bench — TinyLlama-1.1B Q4, **CPU** (24t) | prefill / decode | 410 / 27.2 t/s | — |
 | AI-Benchmark (ETH) | AI Score | run on T4/CPU (TF ≠ Blackwell) | |
 | MLPerf Client | tokens/s, TTFT | native-Windows app (see doc) | |
 
-GPU vs CPU on the LLM (5070 Ti): ~46× prefill, ~17× decode.
+GPU vs CPU on the LLM (5070 Ti): ~51× prefill, ~16× decode.
+
+‡ Bundle-backed run, SHA-256-verified model, arch auto-detected `120 → 120a` (Blackwell). Prefill is
+noisy (±~3,700 t/s ≈ 17% run-to-run); decode stable (±43). An earlier run measured 19,082 / 463.
 
 † **T4 llama-bench GPU: not obtained on free Colab.** Free Colab T4 VMs have only **2 vCPUs**;
 llama.cpp's CUDA build (many flash-attention / kernel template instances) doesn't finish within the

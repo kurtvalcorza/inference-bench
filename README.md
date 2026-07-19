@@ -99,7 +99,7 @@ figures vary ±10% run-to-run. Provenance and caveats: [docs/results.md](docs/re
 | microbench ResNet-50 fp16 (TensorRT) | 4,774 img/s | 1,945 img/s |
 | microbench FP16 / BF16 TFLOPS | 42.7 / 51.4 | 22.7 / 2.1 |
 | Polygraphy (trtexec) ResNet-50 fp16 bs128 | ~3,965 img/s | — |
-| llama-bench TinyLlama-1.1B Q4 (GPU) | 19,082 / 463 t/s | — |
+| llama-bench TinyLlama-1.1B Q4 (GPU) | 20,842 / 434 t/s | — |
 | llama-bench TinyLlama-1.1B Q4 (CPU) | 410 / 27 t/s | — |
 
 Full tables (incl. CPU, latency percentiles, per-batch curves) in [docs/results.md](docs/results.md).

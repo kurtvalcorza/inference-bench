@@ -53,6 +53,7 @@ cd "$LLM"
 [ -s tinyllama.gguf ] || wget -q -O tinyllama.gguf \
   "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
 # Verify the model hash. Set GGUF_SHA256 to enforce; otherwise the actual hash is recorded so you can pin it.
+# Known-good (TheBloke TinyLlama-1.1B-Chat-v1.0 Q4_K_M): 9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0
 ACTUAL_SHA=$(sha256sum tinyllama.gguf | cut -d' ' -f1)
 if [ -n "${GGUF_SHA256:-}" ]; then
   [ "$ACTUAL_SHA" = "$GGUF_SHA256" ] || { echo "!! tinyllama.gguf sha256 mismatch: got $ACTUAL_SHA, expected $GGUF_SHA256"; exit 1; }
