@@ -43,11 +43,14 @@ python -c "import tensorrt, onnx"  2>/dev/null || pip install -q tensorrt onnx
 python -c "import cv2"             2>/dev/null || pip install -q opencv-python-headless
 python -c "import pycocotools"     2>/dev/null || pip install -q pycocotools   # main.py imports coco unconditionally
 
-# --- harness ----------------------------------------------------------------
+# --- harness (pinned for reproducibility) -----------------------------------
+INFERENCE_REF="${INFERENCE_REF:-da738a5}"   # commit the notebooks/results were produced against
 if [ ! -d "$H" ]; then
-  echo "===== cloning mlcommons/inference into $INFERENCE_REPO ====="
-  git clone --depth 1 https://github.com/mlcommons/inference.git "$INFERENCE_REPO"
+  echo "===== cloning mlcommons/inference @ $INFERENCE_REF into $INFERENCE_REPO ====="
+  git clone --filter=blob:none --no-checkout https://github.com/mlcommons/inference.git "$INFERENCE_REPO"
+  git -C "$INFERENCE_REPO" checkout -q "$INFERENCE_REF" || { echo "!! could not checkout $INFERENCE_REF"; exit 1; }
 fi
+echo "harness commit: $(git -C "$INFERENCE_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown) (pin: $INFERENCE_REF)"
 
 cat > "$CONF" <<'CONF'
 resnet50.SingleStream.min_duration = 10000

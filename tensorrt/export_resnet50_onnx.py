@@ -18,7 +18,19 @@ if not torch.cuda.is_available():
              "Run it on the GPU box (check CUDA_VISIBLE_DEVICES if a GPU is present).")
 
 if pth and os.path.exists(pth):
-    sd = torch.load(pth, map_location="cpu", weights_only=False)
+    try:
+        sd = torch.load(pth, map_location="cpu", weights_only=True)   # safe path first
+    except Exception as e:
+        if os.environ.get("ALLOW_UNSAFE_PICKLE") == "1":
+            print(f"[warn] safe load failed ({e}); ALLOW_UNSAFE_PICKLE=1 → weights_only=False "
+                  f"(arbitrary-code-execution risk — only for files you trust)")
+            sd = torch.load(pth, map_location="cpu", weights_only=False)
+        else:
+            sys.exit(f"ERROR: {pth} could not be loaded safely (weights_only=True): {e}\n"
+                     f"Legacy checkpoints need weights_only=False, which can execute arbitrary code. "
+                     f"Re-run with ALLOW_UNSAFE_PICKLE=1 ONLY if you trust this file, or unset "
+                     f"RESNET50_PTH to download verified torchvision weights instead.")
+    sd = sd.get("state_dict", sd) if isinstance(sd, dict) else sd
     m = torchvision.models.resnet50()
     m.load_state_dict(sd)
     print(f"loaded weights from {pth}")

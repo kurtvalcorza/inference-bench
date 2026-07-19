@@ -1,0 +1,48 @@
+# Version baseline for inference-bench — the ACTUAL validated stack, captured from the
+# `mlperf` WSL distro venv (RTX 5070 Ti, Blackwell/sm_120).
+#
+# This pins VERSIONS for reproducibility. It is NOT a hash-locked lockfile, and
+# torch/torchvision/tensorrt come from special wheels, so install in this order:
+#
+#   # 1) PyTorch (Blackwell/sm_120 needs the cu128 index; works on A100/H200/T4 too)
+#   pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.11.0 torchvision==0.26.0
+#   # 2) everything else
+#   pip install -r requirements.txt
+#
+# The authoritative record of what actually ran is the per-run bundle written by
+# scripts/run_bundle.sh (env.txt = full `pip freeze`), not this file.
+
+# --- torch (from the cu128 index, see above — listed here for reference only) ---
+# torch==2.11.0+cu128
+# torchvision==0.26.0+cu128
+
+# --- MLPerf harness / LoadGen ---
+mlcommons-loadgen==6.0.16
+
+# --- TensorRT tier (supports sm_75/80/90/120) ---
+tensorrt==11.1.0.106
+onnx==1.22.0
+
+# --- vision harness deps ---
+opencv-python-headless==5.0.0.93
+pycocotools==2.0.11
+
+# --- BERT/SQuAD reference ---
+transformers==4.48.3
+
+# --- Whisper reference (custom loop) ---
+openai-whisper==20250625
+jiwer==4.0.0
+soundfile==0.14.0
+
+# --- dataset tooling (HF ImageNet mirror) ---
+# NB: huggingface_hub 1.x breaks transformers 4.48 / tokenizers — keep <1.0
+huggingface-hub==0.36.2
+pyarrow==25.0.0
+
+# --- standards ---
+polygraphy==0.50.3
+
+# --- microbench / misc ---
+numpy==2.4.6
+psutil==7.2.2

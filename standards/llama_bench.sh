@@ -14,7 +14,16 @@ if [ -z "${BENCH_ROOT:-}" ]; then
 fi
 LLM="$BENCH_ROOT/llm"
 mkdir -p "$LLM"; cd "$LLM"
-[ -d llama.cpp ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+LLAMA_REF="${LLAMA_REF:-}"           # set to a commit/tag to pin; empty = latest (resolved sha printed below)
+if [ ! -d llama.cpp ]; then
+  if [ -n "$LLAMA_REF" ]; then
+    git clone --filter=blob:none --no-checkout https://github.com/ggml-org/llama.cpp.git
+    git -C llama.cpp checkout -q "$LLAMA_REF" || { echo "!! could not checkout llama.cpp @ $LLAMA_REF"; exit 1; }
+  else
+    git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+  fi
+fi
+echo "llama.cpp commit: $(git -C llama.cpp rev-parse --short HEAD) (pin: ${LLAMA_REF:-none — set LLAMA_REF to pin})"
 cd llama.cpp
 
 if [ "$MODE" = cuda ]; then
@@ -43,4 +52,12 @@ cmake --build "$BUILD" -j"${JOBS:-4}" --target llama-bench
 cd "$LLM"
 [ -s tinyllama.gguf ] || wget -q -O tinyllama.gguf \
   "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+# Verify the model hash. Set GGUF_SHA256 to enforce; otherwise the actual hash is recorded so you can pin it.
+ACTUAL_SHA=$(sha256sum tinyllama.gguf | cut -d' ' -f1)
+if [ -n "${GGUF_SHA256:-}" ]; then
+  [ "$ACTUAL_SHA" = "$GGUF_SHA256" ] || { echo "!! tinyllama.gguf sha256 mismatch: got $ACTUAL_SHA, expected $GGUF_SHA256"; exit 1; }
+  echo "gguf sha256 OK ($ACTUAL_SHA)"
+else
+  echo "[warn] tinyllama.gguf sha256=$ACTUAL_SHA is NOT pinned — set GGUF_SHA256=$ACTUAL_SHA to enforce it"
+fi
 "llama.cpp/$BUILD/bin/llama-bench" -m tinyllama.gguf -p 512 -n 128 $NGL
