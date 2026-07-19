@@ -33,7 +33,7 @@ GGUF_SHA256=9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0 bas
 build doesn't finish within the session lifetime (even with `sm_75` + `-DGGML_CUDA_FORCE_CUBLAS=ON`).
 Use Colab Pro or a real T4 box.
 
-Context: Polygraphy's ~4,125 img/s sits between our host-bound MLPerf-TRT SUT (~3,652) and the raw
+Context: Polygraphy's ~4,125 img/s sits between our host-bound MLPerf-TRT SUT (~3,210) and the raw
 microbench ceiling (4,774) — it keeps tensors on-GPU (less host overhead than the MLPerf harness) but
 isn't the LoadGen harness.
 

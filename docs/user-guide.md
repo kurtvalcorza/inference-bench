@@ -7,8 +7,10 @@ How to run each benchmark. All commands assume the `mlperf` WSL distro with the 
 
 ## 0. Recording a citable result (recommended)
 
-Any number worth keeping should be produced inside a **run bundle** — an immutable snapshot of the
-command, repo commit, `pip freeze`, GPU/driver, asset SHA-256s, full logs, and real exit status:
+Any number worth keeping should be produced inside a **run bundle** — a self-contained (not
+cryptographically immutable) record of the command, repo commit + working-tree diff, the env knobs
+the runners read, `pip freeze`, GPU/driver, asset SHA-256s (including a root hash over every val
+image), full logs, and the real exit status:
 
 ```bash
 bash scripts/run_bundle.sh trt-5070ti -- bash tensorrt/trt_mlperf_run.sh

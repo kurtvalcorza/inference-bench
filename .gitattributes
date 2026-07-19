@@ -6,3 +6,7 @@
 # Windows checkout (autocrlf) doesn't show every line as a phantom CRLF diff, and
 # so run-bundle provenance isn't spuriously marked repo-dirty.
 *.ipynb text eol=lf
+
+# A committed run bundle is frozen evidence — treat every file as binary so git
+# never rewrites line endings (byte-exact logs) and never phantom-diffs it.
+results/bundles/** -text

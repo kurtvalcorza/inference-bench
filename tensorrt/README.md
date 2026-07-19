@@ -24,9 +24,13 @@ MAXBS=32 bash trt_mlperf_run.sh        # override
 
 | Scenario | RTX 5070 Ti | Colab T4 |
 |---|---|---|
-| SingleStream p90 | 2.39 ms (VALID) | 2.80 ms |
-| Offline | 3,652 img/s (VALID) | 1,200 img/s |
-| Accuracy | 75.44% / 84.5% | 84.6% |
+| SingleStream p90 | ~5.5 ms (VALID, laptop-noisy: 4.6–7.7) | 2.80 ms |
+| Offline | 3,210 img/s (VALID) | 1,200 img/s |
+| Accuracy | 75.34% / 84.5% | 84.6% |
+
+Numbers from the committed bundle `results/bundles/20260719T122957Z-trt-5070ti-hardened.BnXBbN/`
+(clean `repo_commit`); SingleStream p90 is thermally noisy on this laptop, Offline is the stable
+signal — see [../docs/results.md](../docs/results.md#loadgen--tensorrt-resnet-50-fp16--loadgen-valid-under-this-suites-short-config-not-mlperf-conformant).
 
 This is a **reference-grade SUT** (host-bound: per-query numpy copies + lock) — Offline throughput is
 below the raw GPU ceiling (`microbench` 4,774). A submission would use pinned memory + async I/O.

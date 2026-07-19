@@ -1,0 +1,23 @@
+{
+  "label": "trt-5070ti-hardened",
+  "utc": "20260719T122957Z",
+  "exit_status": 0,
+  "passed": true,
+  "command": "bash tensorrt/trt_mlperf_run.sh",
+  "meta": "label: trt-5070ti-hardened\nutc: 20260719T122957Z\nhost: Kurt-Valcorza\nbench_root: /root/mlperf\nrepo_commit: 2a9f7790ac12558db49ad3b37063af1bf58533ef\nrepo_dirty: no\nos: Linux Kurt-Valcorza 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux\npython: Python 3.12.3",
+  "env_vars": "BENCH_ROOT=/root/mlperf\nBENCH_VENV=\nINFERENCE_REF=\nINFERENCE_REPO=\nLLAMA_REF=\nDATA=\nONNX=\nRESNET50_PTH=\nMAXBS=\nBS=\nBATCHES=\nMATMUL_SIZES=\nREPEATS=\nJOBS=\nCUDA_ARCH=\nCUDA_HOME=\nACC_MIN=\nMIN_SAMPLES=5000\nMIN_CLASSES=1000\nMODE=\nN_UTT=\nALLOW_UNSAFE_PICKLE=\nGGUF_SHA256=\nIMAGENETTE_SHA256=\nDATASET_REVISION=\nCUDA_VISIBLE_DEVICES=",
+  "checksums": "f228ff558474936fdd37767f2c1da67b25aab91e34bba83552f5ffcb09d46ce2  /root/mlperf/vision/resnet50_fp16_dyn.onnx\nc69dec1927fdb171864112751bc84332495abc9a6bdc8682dca3568b193587e5  /root/mlperf/vision/inet_val/val_map.txt\n9fecc3b3cd76bba89d504f29b616eedf7da85b96540e490ca5824d3f7d2776a0  /root/mlperf/llm/tinyllama.gguf\ndac946e67136e7963900369d25143a7a75262cfc7f8e68d0bb4fcbfe6b6cf2d9  (root sha256 of all inet_val/*.JPEG)",
+  "repo_dirty_diff": false,
+  "repo_untracked": false,
+  "files": [
+    "checksums.txt",
+    "command.txt",
+    "env-vars.txt",
+    "env.txt",
+    "exit_status",
+    "meta.txt",
+    "nvidia-smi.txt",
+    "run.log",
+    "tensorrt_run"
+  ]
+}

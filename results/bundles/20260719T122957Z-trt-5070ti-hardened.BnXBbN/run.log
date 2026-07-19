@@ -1,0 +1,68 @@
+BENCH_ROOT=/root/mlperf  INFERENCE_REPO=/root/mlperf/inference  MAXBS=128
+harness pinned: da738a5 (INFERENCE_REF=da738a5)
+===== install TensorRT backend into the harness =====
+main.py patched: +tensorrt backend
+
+===== export fp16 dynamic-batch ONNX =====
+-rw-r--r-- 1 root root 49M Jul 18 22:21 /root/mlperf/vision/resnet50_fp16_dyn.onnx
+
+===== ensure accuracy/data subset =====
+dataset OK: 5000 images, 1000 classes, all present (floors: >=5000 samples, >=1000 classes)
+DATA=/root/mlperf/vision/inet_val  (5000 images)
+run dir: /root/mlperf/vision/runs/20260719-202958.vws7VC
+
+############ SingleStream (p50/p90/p99 latency) ############
+-- SingleStream: VALID --
+================================================
+MLPerf Results Summary
+================================================
+SUT name : PySUT
+Scenario : SingleStream
+Mode     : PerformanceOnly
+90.0th percentile latency (ns) : 5494555
+Result is : VALID
+  Min duration satisfied : Yes
+  Min queries satisfied : Yes
+  Early stopping satisfied: Yes
+Early Stopping Result:
+ * Processed at least 64 queries (12000).
+ * Would discard 1122 highest latency queries.
+ * Early stopping 90.0th percentile estimate: 5634489
+ * Early stopping 99.0th percentile estimate: 11187219
+
+================================================
+Additional Stats
+================================================
+QPS w/ loadgen overhead         : 318.92
+QPS w/o loadgen overhead        : 320.21
+
+############ Offline (throughput) ############
+-- Offline: VALID --
+================================================
+MLPerf Results Summary
+================================================
+SUT name : PySUT
+Scenario : Offline
+Mode     : PerformanceOnly
+Samples per second: 3209.72
+Result is : VALID
+  Min duration satisfied : Yes
+  Min queries satisfied : Yes
+  Early stopping satisfied: Yes
+
+================================================
+Additional Stats
+================================================
+Min latency (ns)                : 115857609
+Max latency (ns)                : 41125100385
+Mean latency (ns)               : 20745868016
+50.00 percentile latency (ns)   : 20858879028
+90.00 percentile latency (ns)   : 37355745726
+95.00 percentile latency (ns)   : 39232587930
+97.00 percentile latency (ns)   : 40008112094
+
+############ Accuracy (top-1, fp16 TRT) ############
+accuracy=75.340%, good=3767, total=5000
+accuracy OK: 75.340% over all 5000 samples (>= 70%)
+
+TRT MLPERF: all checks passed (LoadGen-VALID under short config); run dir /root/mlperf/vision/runs/20260719-202958.vws7VC

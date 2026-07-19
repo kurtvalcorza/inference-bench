@@ -33,18 +33,18 @@ xychart-beta
     title "ResNet-50 fp16 throughput, RTX 5070 Ti (img/s)"
     x-axis ["MLPerf ref", "eager", "compile", "MLPerf+TRT", "polygraphy", "raw TRT"]
     y-axis "img/s" 0 --> 5000
-    bar [552, 1873, 2982, 3652, 4125, 4774]
+    bar [552, 1873, 2982, 3210, 4125, 4774]
 ```
 
 Same model, same GPU — 8.6× from the unoptimized MLPerf reference (552) to a raw TensorRT engine
-(4,774). The MLPerf+TensorRT harness (3,652) trails raw TRT because its SUT is host-bound.
+(4,774). The MLPerf+TensorRT harness (3,210) trails raw TRT because its SUT is host-bound.
 
 ```text
 ResNet-50 fp16 throughput (img/s), RTX 5070 Ti
   MLPerf reference ███                          552
   eager PyTorch    ███████████                  1,873
   torch.compile    █████████████████            2,982
-  MLPerf+TensorRT  █████████████████████        3,652
+  MLPerf+TensorRT  ███████████████████          3,210
   polygraphy       ████████████████████████     4,125
   raw TensorRT     ████████████████████████████ 4,774
 ```
@@ -65,8 +65,8 @@ Memory bandwidth (GB/s)
   T4       █████████████                232 (2.1x)
 
 MLPerf TensorRT SingleStream p90 latency (ms, lower=better)
-  5070 Ti  ████████████████████████████ 4.2 (laptop, noisy)
-  T4       ███████████████████          2.8 (stable clock wins at batch-1)
+  5070 Ti  ████████████████████████████ ~5.5 (laptop, thermal-noisy: 4.6–7.7 across runs)
+  T4       ██████████████               2.8 (stable clock wins at batch-1)
 ```
 
 ### GPU vs CPU — the reason inference runs on GPUs
@@ -105,15 +105,19 @@ hardware signal.
 
 | Scenario | Metric | RTX 5070 Ti | Colab T4 |
 |---|---|---|---|
-| SingleStream | **p90 latency** | **2.39 ms** (VALID)‡ | **2.80 ms** |
-| | QPS (batch-1) | 561 | — |
-| Offline | **throughput** | **3,652 img/s** (VALID)‡ | 1,200 img/s |
-| Accuracy | top-1 | 75.44% (repr, 5k) / 84.5% (Imagenette) | 84.6% (Imagenette) |
+| SingleStream | **p90 latency** | **5.49 ms** (VALID)‡ — laptop-thermal-noisy | **2.80 ms** |
+| | QPS (batch-1) | 320 | — |
+| Offline | **throughput** | **3,210 img/s** (VALID)‡ | 1,200 img/s |
+| Accuracy | top-1 | 75.34% (repr, 5k) / 84.5% (Imagenette) | 84.6% (Imagenette) |
 
-‡ 5070 Ti figures are from a bundle-backed run (`results/bundles/…-trt-5070ti-retune`, all three
-scenarios LoadGen-VALID, `INFERENCE_REF=da738a5`, `MAXBS=128`). Earlier laptop SingleStream runs
-were noisy/INVALID at `min_query_count=4000` (the card now does ~580 QPS, so 4000 queries finished in
-~7 s < the 10 s min-duration); bumping to 12000 makes it VALID — see [gotchas.md](gotchas.md).
+‡ 5070 Ti figures are from a **committed** bundle
+(`results/bundles/20260719T122957Z-trt-5070ti-hardened.BnXBbN/`, `repo_commit` clean at `2a9f779`,
+all three scenarios LoadGen-VALID, `INFERENCE_REF=da738a5`, `MIN_SAMPLES=5000 MIN_CLASSES=1000`) — so
+a reader can check the raw logs, not just this table. **SingleStream p90 is thermally noisy on this
+laptop**: three back-to-back runs gave 4.62 / 5.49 / 7.72 ms (QPS 342 / 320 / 231). Treat it as
+indicative, not a stable figure; Offline throughput (3,152 / 3,210 / 3,191 img/s) is the stable
+signal. Earlier runs were also INVALID at `min_query_count=4000` (finished in ~7 s < the 10 s
+min-duration); 12000 makes it VALID — see [gotchas.md](gotchas.md).
 
 **Findings.** The T4 has *lower, cleaner* single-stream latency (stable clock beats a throttling
 laptop at batch-1, where the workload is latency/host-bound). The 5070 Ti has ~2.7× the Offline
@@ -177,7 +181,7 @@ session lifetime, even with `-DGGML_CUDA_FORCE_CUBLAS=ON` and pinned `sm_75`. Ge
 | Path | img/s | What it measures |
 |---|---|---|
 | MLPerf reference (PyTorch) | 552 | unoptimized reference harness |
-| LoadGen + TensorRT (this suite) | ~3,652 | LoadGen + optimized backend (short config) |
+| LoadGen + TensorRT (this suite) | ~3,210 | LoadGen + optimized backend (short config) |
 | Raw microbench (TensorRT) | 4,774 | GPU ceiling, no harness/host overhead |
 
 The gap between the middle and bottom rows is the reference-grade SUT's host overhead
@@ -189,12 +193,14 @@ The gap between the middle and bottom rows is the reference-grade SUT's host ove
 
 Read this before trusting any number above.
 
-- **Point-in-time, mostly not committed as artifacts.** These were recorded across several sessions
-  on a thermally variable laptop and a shared Colab T4. The 5070 Ti figures marked "bundle-backed"
-  (LoadGen+TensorRT, polygraphy, llama-bench) were verified against a `scripts/run_bundle.sh` bundle
-  on the author's machine, but **bundles are gitignored**, so a reader can't independently check them
-  unless one is published (`git add -f` or a release). The rest are older point-in-time numbers.
-  Prefer regenerating a bundle over citing this table.
+- **Point-in-time; one bundle is committed, the rest are not.** These were recorded across several
+  sessions on a thermally variable laptop and a shared Colab T4. The LoadGen+TensorRT run is now
+  backed by a **committed** bundle (`results/bundles/20260719T122957Z-trt-5070ti-hardened.BnXBbN/`,
+  force-added past the `.gitignore`) so a reader can independently check its raw logs, env, and asset
+  hashes. The other "bundle-backed" 5070 Ti figures (polygraphy, llama-bench) were verified against a
+  local `scripts/run_bundle.sh` bundle but **those bundles are gitignored**; regenerate one to check
+  them. The remaining figures are older point-in-time numbers — prefer regenerating a bundle over
+  citing this table.
 - **The checked-in notebooks are not the source of every number.** Some notebook cells were re-run
   out of band, some `*_output.ipynb` performance/accuracy cells are empty, and a few figures come
   from later/cached runs. Concretely: the reference ResNet Offline figure is quoted as **552**
@@ -204,9 +210,9 @@ Read this before trusting any number above.
 - **Subsets, not full validation sets.** Accuracy (top-1, f1, WER) is over small subsets, so it is
   only a sanity indicator, not a conformant accuracy result.
 - **How to reproduce cleanly:** run the script under `scripts/run_bundle.sh` (see
-  [user-guide.md](user-guide.md)), which pins versions, checksums assets, captures the full
-  environment, and writes a parsed result alongside the raw logs. That bundle — not this table — is
-  the citable artifact.
+  [user-guide.md](user-guide.md)), which pins versions, checksums assets (incl. a root hash over
+  every val image), and captures the env knobs plus a full `pip freeze` alongside the raw logs. That
+  bundle — not this table — is the citable artifact.
 
 ## Pending
 

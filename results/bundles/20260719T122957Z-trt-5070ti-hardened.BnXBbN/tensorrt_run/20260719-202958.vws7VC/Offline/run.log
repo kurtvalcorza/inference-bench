@@ -1,0 +1,5 @@
+INFO:main:Namespace(dataset='imagenet_pytorch', dataset_path='/root/mlperf/vision/inet_val', dataset_list=None, data_format=None, profile='resnet50-pytorch', scenario='Offline', max_batchsize=128, model='/root/mlperf/vision/resnet50_fp16_dyn.onnx', output='/root/mlperf/vision/runs/20260719-202958.vws7VC/Offline', inputs=['image'], outputs=['ArgMax:0'], backend='tensorrt', device=None, model_name='resnet50', threads=24, qps=None, cache=0, cache_dir=None, preprocessed_dir=None, use_preprocessed_dataset=False, accuracy=False, find_peak_performance=False, debug=False, user_conf='/root/mlperf/vision/trt.conf', audit_conf='audit.config', time=None, count=None, performance_sample_count=None, max_latency=None, samples_per_query=8)
+INFO:imagenet:Preprocessing 5000 images using 24 threads
+INFO:imagenet:loaded 5000 images, cache=0, already_preprocessed=False, took=0.3sec
+INFO:main:starting TestScenario.Offline
+TestScenario.Offline qps=25.08, mean=3.7083, time=41.150, queries=1032, tiles=50.0:4.4385,80.0:4.6314,90.0:5.1593,95.0:5.2256,99.0:5.2677,99.9:5.3204

@@ -1,0 +1,58 @@
+{
+    "TestScenario.SingleStream": {
+        "count": 12000,
+        "good_items": 0,
+        "mean": 0.0030126631061236065,
+        "percentiles": {
+            "50.0": 0.0023310184478759766,
+            "80.0": 0.0038977622985839847,
+            "90.0": 0.005322575569152832,
+            "95.0": 0.006688475608825682,
+            "99.0": 0.010408539772033695,
+            "99.9": 0.014479424238205007
+        },
+        "qps": 318.6458931203477,
+        "took": 37.659358739852905,
+        "total_items": 12000
+    },
+    "args": {
+        "accuracy": false,
+        "audit_conf": "audit.config",
+        "backend": "tensorrt",
+        "cache": 0,
+        "cache_dir": null,
+        "count": null,
+        "data_format": null,
+        "dataset": "imagenet_pytorch",
+        "dataset_list": null,
+        "dataset_path": "/root/mlperf/vision/inet_val",
+        "debug": false,
+        "device": null,
+        "find_peak_performance": false,
+        "inputs": [
+            "image"
+        ],
+        "max_batchsize": 128,
+        "max_latency": null,
+        "model": "/root/mlperf/vision/resnet50_fp16_dyn.onnx",
+        "model_name": "resnet50",
+        "output": "/root/mlperf/vision/runs/20260719-202958.vws7VC/SingleStream",
+        "outputs": [
+            "ArgMax:0"
+        ],
+        "performance_sample_count": null,
+        "preprocessed_dir": null,
+        "profile": "resnet50-pytorch",
+        "qps": null,
+        "samples_per_query": 8,
+        "scenario": "SingleStream",
+        "threads": 24,
+        "time": null,
+        "use_preprocessed_dataset": false,
+        "user_conf": "/root/mlperf/vision/trt.conf"
+    },
+    "cmdline": "Namespace(dataset='imagenet_pytorch', dataset_path='/root/mlperf/vision/inet_val', dataset_list=None, data_format=None, profile='resnet50-pytorch', scenario='SingleStream', max_batchsize=128, model='/root/mlperf/vision/resnet50_fp16_dyn.onnx', output='/root/mlperf/vision/runs/20260719-202958.vws7VC/SingleStream', inputs=['image'], outputs=['ArgMax:0'], backend='tensorrt', device=None, model_name='resnet50', threads=24, qps=None, cache=0, cache_dir=None, preprocessed_dir=None, use_preprocessed_dataset=False, accuracy=False, find_peak_performance=False, debug=False, user_conf='/root/mlperf/vision/trt.conf', audit_conf='audit.config', time=None, count=None, performance_sample_count=None, max_latency=None, samples_per_query=8)",
+    "runtime": "tensorrt",
+    "time": 1784464226,
+    "version": "11.1.0.106"
+}

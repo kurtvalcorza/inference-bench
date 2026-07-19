@@ -1,0 +1,8 @@
+label: trt-5070ti-hardened
+utc: 20260719T122957Z
+host: Kurt-Valcorza
+bench_root: /root/mlperf
+repo_commit: 2a9f7790ac12558db49ad3b37063af1bf58533ef
+repo_dirty: no
+os: Linux Kurt-Valcorza 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+python: Python 3.12.3

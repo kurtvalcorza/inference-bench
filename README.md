@@ -91,8 +91,8 @@ figures vary ±10% run-to-run. Provenance and caveats: [docs/results.md](docs/re
 
 | Benchmark | RTX 5070 Ti | Colab T4 |
 |---|---|---|
-| LoadGen+TensorRT ResNet-50 — Offline | 3,652 img/s (VALID) | 1,200 img/s |
-| LoadGen+TensorRT ResNet-50 — SingleStream p90 | 2.39 ms (VALID) | 2.80 ms |
+| LoadGen+TensorRT ResNet-50 — Offline | 3,210 img/s (VALID) | 1,200 img/s |
+| LoadGen+TensorRT ResNet-50 — SingleStream p90 | ~5.5 ms (VALID, laptop-noisy) | 2.80 ms |
 | BERT/SQuAD (LoadGen, 1k subset) — f1 | 90.40 | 90.40 |
 | ResNet-50 (LoadGen, subset) — top-1 | 75.4% / 84.5% | 84.6% |
 | Whisper (custom loop, no LoadGen) — WER | ~3.5–5% | 2.16% |
