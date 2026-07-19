@@ -13,6 +13,65 @@ All numbers measured with torch **2.11.0+cu128**, TensorRT **11.1**. Laptop 5070
 
 ---
 
+## Visual summary
+
+### ResNet-50 fp16 throughput on the RTX 5070 Ti — reference → optimized → raw
+
+```mermaid
+xychart-beta
+    title "ResNet-50 fp16 throughput, RTX 5070 Ti (img/s)"
+    x-axis ["MLPerf ref", "eager", "compile", "MLPerf+TRT", "polygraphy", "raw TRT"]
+    y-axis "img/s" 0 --> 5000
+    bar [552, 1873, 2982, 3100, 3965, 4774]
+```
+
+Same model, same GPU — 8.6× from the unoptimized MLPerf reference (552) to a raw TensorRT engine
+(4,774). The MLPerf+TensorRT harness (3,100) trails raw TRT because its SUT is host-bound.
+
+```text
+ResNet-50 fp16 throughput (img/s), RTX 5070 Ti
+  MLPerf reference ███                          552
+  eager PyTorch    ███████████                  1,873
+  torch.compile    █████████████████            2,982
+  MLPerf+TensorRT  ██████████████████           3,100
+  polygraphy       ███████████████████████      3,965
+  raw TensorRT     ████████████████████████████ 4,774
+```
+
+### RTX 5070 Ti vs Colab T4
+
+```text
+ResNet-50 fp16, raw TensorRT (img/s)
+  5070 Ti  ████████████████████████████ 4,774
+  T4       ███████████                  1,945 (2.5x)
+
+FP16 tensor-core TFLOPS
+  5070 Ti  ████████████████████████████ 42.7
+  T4       ███████████████              22.7 (1.9x)
+
+Memory bandwidth (GB/s)
+  5070 Ti  ████████████████████████████ 498
+  T4       █████████████                232 (2.1x)
+
+MLPerf TensorRT SingleStream p90 latency (ms, lower=better)
+  5070 Ti  ████████████████████████████ 4.2 (laptop, noisy)
+  T4       ███████████████████          2.8 (stable clock wins at batch-1)
+```
+
+### GPU vs CPU — the reason inference runs on GPUs
+
+```text
+llama.cpp TinyLlama-1.1B decode (tokens/s), 5070 Ti
+  GPU  ████████████████████████████ 463
+  CPU  ██                           27  (17x; prefill 19,082 vs 410 = 47x)
+
+ResNet-50 (img/s), 5070 Ti TensorRT vs 24-thread CPU
+  GPU  ████████████████████████████ 4,774
+  CPU                               27  (~175x)
+```
+
+---
+
 ## MLPerf Inference — reference implementations
 
 | Domain | Model / dataset | Metric | RTX 5070 Ti | Colab T4 |
