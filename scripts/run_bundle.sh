@@ -35,9 +35,13 @@ fi
 VENV="${BENCH_VENV:-/root/mlperf/venv}"
 [ -f "$VENV/bin/activate" ] && source "$VENV/bin/activate"
 
+LABEL=$(printf '%s' "$LABEL" | tr -c 'A-Za-z0-9._-' '_')   # sanitize: no '/', no traversal
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-B="$REPO_ROOT/results/bundles/${STAMP}-${LABEL}"
-mkdir -p "$B"
+# RESULTS_ROOT lets tests/callers redirect output away from real bundles; mktemp guarantees a
+# UNIQUE dir even for the same label within one second (no silent overwrite).
+RESULTS_ROOT="${RESULTS_ROOT:-$REPO_ROOT/results/bundles}"
+mkdir -p "$RESULTS_ROOT"
+B=$(mktemp -d "$RESULTS_ROOT/${STAMP}-${LABEL}.XXXXXX")
 
 {
   echo "label: $LABEL"
