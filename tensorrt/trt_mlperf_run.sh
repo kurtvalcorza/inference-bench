@@ -91,7 +91,16 @@ echo
 echo "===== ensure accuracy/data subset ====="
 if [ ! -s "$VMAP" ]; then
   echo "no val_map at $VMAP — building representative ImageNet subset (needs HF mirror)"
-  pip show huggingface_hub >/dev/null 2>&1 || pip install -q "huggingface_hub>=0.24,<1.0" pyarrow
+  # need BOTH huggingface_hub (<1.0, or it breaks transformers 4.48) AND pyarrow — check both, not just presence
+  python - <<'PY' || pip install -q "huggingface_hub>=0.24,<1.0" pyarrow
+import sys
+try:
+    import pyarrow  # noqa: F401
+    import huggingface_hub as h
+    sys.exit(0 if int(h.__version__.split(".")[0]) < 1 else 1)
+except Exception:
+    sys.exit(1)
+PY
   BENCH_ROOT="$BENCH_ROOT" python "$SCRIPT_DIR/build_imagenet_subset.py" "$DATA" || {
     echo "!! subset build failed. Point DATA=... at a val set with val_map.txt (e.g. Imagenette) and re-run."; exit 1; }
 fi

@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
 """Portable CPU hardware benchmark: matmul GFLOPS (fp32/bf16), memory bandwidth,
 and ResNet-50 inference throughput (eager / bf16-autocast / torch.compile).
-CPU-only, runs anywhere. Usage: python cpu_bench.py"""
-import time, json, os, platform, multiprocessing
+CPU-only, runs anywhere. Usage: python cpu_bench.py   (REPEATS=5 for more trials)
+
+Headline numbers are the MEDIAN of REPEATS warm trials (min/max also recorded), so a
+single noisy run doesn't skew a cross-machine comparison. Not a controlled benchmark —
+report the full JSON (incl. metadata) when comparing machines."""
+import time, json, os, platform, statistics
 import torch
 
+REPEATS = int(os.environ.get("REPEATS", "3"))
 torch.set_num_threads(os.cpu_count())
+
+def physical_cores():
+    try:
+        import psutil
+        n = psutil.cpu_count(logical=False)
+        if n: return n
+    except Exception:
+        pass
+    return None   # unknown — do NOT report logical count as physical
 
 def cpu_model():
     try:
@@ -17,8 +31,9 @@ def cpu_model():
     return platform.processor() or platform.machine()
 
 res = {"cpu": cpu_model(), "logical_cores": os.cpu_count(),
-       "physical_cores": multiprocessing.cpu_count(), "torch_threads": torch.get_num_threads(),
-       "torch": torch.__version__}
+       "physical_cores": physical_cores(), "torch_threads": torch.get_num_threads(),
+       "torch": torch.__version__, "platform": platform.platform(),
+       "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "repeats": REPEATS}
 
 def timed(fn, iters, warmup=3):
     for _ in range(warmup): fn()
@@ -26,28 +41,33 @@ def timed(fn, iters, warmup=3):
     for _ in range(iters): fn()
     return (time.perf_counter() - t0) / iters
 
+def stats(vals):   # median headline + spread over REPEATS trials
+    return {"median": round(statistics.median(vals), 1),
+            "min": round(min(vals), 1), "max": round(max(vals), 1)}
+
 def matmul_gflops(dtype, n=4096, iters=10):
     a = torch.randn(n, n, dtype=dtype); b = torch.randn(n, n, dtype=dtype)
     dt = timed(lambda: torch.matmul(a, b), iters)
     return 2 * n**3 / dt / 1e9  # GFLOPS
 
-print(f"=== {res['cpu']} | {res['logical_cores']} threads | torch {torch.__version__} ===")
-print("\n[1] Peak matmul GFLOPS (4096^3)")
+print(f"=== {res['cpu']} | {res['logical_cores']} logical / {res['physical_cores']} physical cores "
+      f"| torch {torch.__version__} | median of {REPEATS} ===")
+print(f"\n[1] Peak matmul GFLOPS (4096^3), median of {REPEATS}")
 res["gflops"] = {}
 for label, dt in [("fp32", torch.float32), ("bf16", torch.bfloat16)]:
     try:
-        v = matmul_gflops(dt); res["gflops"][label] = round(v, 1)
-        print(f"   {label:5s}: {v:8.1f} GFLOPS")
+        s = stats([matmul_gflops(dt) for _ in range(REPEATS)]); res["gflops"][label] = s
+        print(f"   {label:5s}: {s['median']:8.1f} GFLOPS  (min {s['min']}, max {s['max']})")
     except Exception as e:
         res["gflops"][label] = None; print(f"   {label:5s}: ERR {str(e)[:70]}")
 
-print("\n[2] Memory bandwidth (copy, 1 GB)")
+print(f"\n[2] Memory bandwidth (copy, 1 GB), median of {REPEATS}")
 try:
     n = 256 * 1024 * 1024
     x = torch.empty(n, dtype=torch.float32); y = torch.empty_like(x)
-    dt = timed(lambda: y.copy_(x), 20)
-    res["bandwidth_GBs"] = round(2 * x.numel() * 4 / dt / 1e9, 1)
-    print(f"   {res['bandwidth_GBs']:8.1f} GB/s")
+    s = stats([2 * x.numel() * 4 / timed(lambda: y.copy_(x), 20) / 1e9 for _ in range(REPEATS)])
+    res["bandwidth_GBs"] = s
+    print(f"   {s['median']:8.1f} GB/s  (min {s['min']}, max {s['max']})")
 except Exception as e:
     res["bandwidth_GBs"] = None; print("   ERR", e)
 
@@ -66,12 +86,12 @@ def resnet_throughput(mode, bs=8, iters=10):
         dt = timed(run, iters, warmup=2)
     return bs / dt
 
-print("\n[3] ResNet-50 inference throughput (batch=8)")
+print(f"\n[3] ResNet-50 inference throughput (batch=8), median of {REPEATS}")
 res["resnet50_imgs"] = {}
 for mode in ["fp32", "bf16", "compile"]:
     try:
-        v = resnet_throughput(mode); res["resnet50_imgs"][mode] = round(v, 1)
-        print(f"   {mode:8s}: {v:8.1f} img/s")
+        s = stats([resnet_throughput(mode) for _ in range(REPEATS)]); res["resnet50_imgs"][mode] = s
+        print(f"   {mode:8s}: {s['median']:8.1f} img/s  (min {s['min']}, max {s['max']})")
     except Exception as e:
         res["resnet50_imgs"][mode] = None; print(f"   {mode:8s}: skipped ({str(e)[:70]})")
 

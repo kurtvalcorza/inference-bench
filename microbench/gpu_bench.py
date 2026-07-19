@@ -17,11 +17,24 @@ assert torch.cuda.is_available(), "no CUDA GPU"
 dev = torch.device("cuda:0")
 def sync(): torch.cuda.synchronize()
 
+import time as _time
+REPEATS = int(os.environ.get("REPEATS", "3"))
 name = torch.cuda.get_device_name(0)
 cap = torch.cuda.get_device_capability(0)
 props = torch.cuda.get_device_properties(0)
+try:
+    _driver = torch.cuda.driver_version() if hasattr(torch.cuda, "driver_version") else None
+except Exception:
+    _driver = None
 res = {"gpu": name, "capability": f"sm_{cap[0]}{cap[1]}", "vram_GB": round(props.total_memory/1e9, 1),
-       "sms": props.multi_processor_count, "torch": torch.__version__}
+       "sms": props.multi_processor_count, "torch": torch.__version__,
+       "cuda": torch.version.cuda, "cudnn": torch.backends.cudnn.version(), "driver": _driver,
+       "platform": platform.platform(), "utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+       "repeats": REPEATS}
+
+def _median(vals):
+    import statistics
+    return statistics.median(vals)
 
 def timed(fn, iters, warmup=10):
     for _ in range(warmup): fn()
@@ -120,7 +133,8 @@ for mode in ["eager", "compile", "tensorrt"]:
     best = 0.0; curve = {}
     for bs in BATCHES:
         try:
-            v = resnet_tensorrt(bs=bs) if mode == "tensorrt" else resnet_throughput(mode, bs=bs)
+            fn = (lambda: resnet_tensorrt(bs=bs)) if mode == "tensorrt" else (lambda: resnet_throughput(mode, bs=bs))
+            v = _median([fn() for _ in range(REPEATS)])   # median of REPEATS warm trials
             curve[bs] = round(v); best = max(best, v)
         except Exception as e:
             curve[bs] = None

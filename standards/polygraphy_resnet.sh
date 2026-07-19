@@ -21,7 +21,7 @@ fi
 mkdir -p "$BENCH_ROOT/vision"
 
 pip show polygraphy >/dev/null 2>&1 || pip install -q polygraphy colored
-python -c "import tensorrt" 2>/dev/null || pip install -q tensorrt onnx
+python -c "import tensorrt, onnx" 2>/dev/null || pip install -q tensorrt onnx   # need BOTH, not just tensorrt
 
 # put the pip CUDA runtime libs on the loader path (polygraphy's runner needs libcudart)
 NVBASE=$(python -c "import os,nvidia; print(os.path.dirname(nvidia.__file__))" 2>/dev/null || true)
