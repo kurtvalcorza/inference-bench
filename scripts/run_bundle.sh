@@ -96,7 +96,10 @@ import json, os, sys
 B, label, stamp, rc = sys.argv[1:5]
 def read(p):
     try:
-        return open(os.path.join(B, p)).read().strip()
+        # explicit utf-8 (+ replace): files may hold non-ASCII (e.g. repo.diff), and Python's
+        # default encoding is cp1252 on Windows — read() there would crash the manifest step.
+        with open(os.path.join(B, p), encoding="utf-8", errors="replace") as f:
+            return f.read().strip()
     except OSError:
         return None
 manifest = {
@@ -106,7 +109,8 @@ manifest = {
     "repo_dirty_diff": bool(read("repo.diff")),
     "files": sorted(os.listdir(B)),
 }
-json.dump(manifest, open(os.path.join(B, "manifest.json"), "w"), indent=2)
+with open(os.path.join(B, "manifest.json"), "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
 PY
 then
   echo "!! manifest generation FAILED — bundle incomplete"; exit 1

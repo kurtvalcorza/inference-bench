@@ -22,3 +22,12 @@ for optimized hardware numbers see [`../tensorrt/`](../tensorrt).
 
 Running instructions: [../docs/user-guide.md](../docs/user-guide.md#3-mlperf-reference-implementations-bert--resnet-50--whisper).
 Fixes explained: [../docs/gotchas.md](../docs/gotchas.md).
+
+> **⚠️ Supply-chain caveat — these notebooks are NOT hardened.** Unlike the pinned/verified scripts in
+> [`../tensorrt/`](../tensorrt) and [`../standards/`](../standards), the reference notebooks still
+> clone upstream at a floating revision, `pip install` unpinned packages, download models/archives
+> without checksum verification, and load the ResNet checkpoint with `torch.load(weights_only=False)`
+> (which can execute arbitrary code from a tampered file). They also commonly run **as root** in the
+> WSL distro. Only run them against sources you trust. For a reproducible, checksum-verified path use
+> `tensorrt/trt_mlperf_run.sh` (pinned harness `INFERENCE_REF`, `weights_only=True` exporter) instead.
+> Hardening the notebooks themselves is tracked as future work.
