@@ -20,6 +20,10 @@ other widely-used benchmarks/tools, added for broader coverage.
 
 GPU vs CPU on the LLM: ~46× prefill, ~17× decode. (The GPU build compiled for sm_120 / Blackwell.)
 
+**Colab T4 llama-bench GPU: not obtained** — free Colab T4 VMs have only 2 vCPUs, so llama.cpp's CUDA
+build doesn't finish within the session lifetime (even with `sm_75` + `-DGGML_CUDA_FORCE_CUBLAS=ON`).
+Use Colab Pro or a real T4 box.
+
 Context: Polygraphy's 3,965 img/s sits between our host-bound MLPerf-TRT SUT (~3,100) and the raw
 microbench ceiling (4,774) — it keeps tensors on-GPU (less host overhead than the MLPerf harness) but
 isn't the LoadGen harness.

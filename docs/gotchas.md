@@ -92,5 +92,9 @@ Every non-obvious fix discovered while building this suite. Grouped by area.
   but the work usually completes on the VM anyway. For long jobs: **launch detached**
   (`subprocess.Popen("bash setup.sh > log 2>&1 &")`) and **poll a results file**; use
   `colab restart-kernel` to clear a stuck kernel.
+- **Building llama.cpp CUDA on a free Colab T4 is impractical** — those VMs have only **2 vCPUs**, so
+  the many flash-attention / kernel template instances don't compile within the session lifetime
+  (even with `sm_75` + `-DGGML_CUDA_FORCE_CUBLAS=ON`). Use Colab Pro, a real T4 box, or a prebuilt
+  CUDA binary. (The `mlperf` distro's 24-thread host builds it fine.)
 - **Verify the real exit code, not a pipeline's:** `python … | grep | tail` reports `tail`'s exit
   (always 0). Capture `${PIPESTATUS[0]}` when gating on success.
