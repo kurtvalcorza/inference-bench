@@ -1,8 +1,12 @@
-# tensorrt/ — MLPerf ResNet-50 + TensorRT backend
+# tensorrt/ — LoadGen + TensorRT backend (MLPerf-inspired)
 
-The **"official MLPerf way"** of hardware benchmarking: the MLCommons LoadGen harness driving an
-**optimized TensorRT fp16 SUT**. Produces **VALID** SingleStream (p99 latency) + Offline
-(throughput) + accuracy.
+The MLCommons LoadGen harness driving an **optimized TensorRT fp16 SUT** — SingleStream (latency),
+Offline (throughput), and accuracy.
+
+> **Not conformant MLPerf.** Runs use a short config (10 s `min_duration`, Offline
+> `min_query_count=1`) on a subset dataset, not MLPerf's ~600 s / full-validation-set rules. A
+> LoadGen "VALID" line here means the run met *that short config* — not MLPerf conformance. Don't
+> report these under the MLPerf label. See [../docs/architecture.md](../docs/architecture.md#what-is-and-isnt-mlperf).
 
 | File | Purpose |
 |---|---|
@@ -16,7 +20,7 @@ bash trt_mlperf_run.sh                 # default max-batchsize 128
 MAXBS=32 bash trt_mlperf_run.sh        # override
 ```
 
-## Results (all VALID)
+## Results (LoadGen-VALID under this suite's short config — not MLPerf-conformant)
 
 | Scenario | RTX 5070 Ti | Colab T4 |
 |---|---|---|

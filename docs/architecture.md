@@ -2,6 +2,10 @@
 
 ## What is (and isn't) MLPerf
 
+> **Reminder:** this suite is **MLPerf-inspired, not conformant MLPerf** — short configs, subset
+> datasets, and (for Whisper) not even LoadGen. See the table below. The description of MLPerf that
+> follows is what a *real* submission does, for context.
+
 **MLPerf Inference** (by MLCommons) benchmarks how fast a *system* (hardware + software) runs a
 **fixed** model on **fixed** data to a **fixed** accuracy target. Because the model/dataset/quality
 are fixed, the only variable is the system — which makes it a fair cross-vendor comparison. It has
@@ -12,16 +16,32 @@ two halves:
 - **Accuracy** — must meet a quality gate (e.g. ResNet-50 ≥ 75.7% top-1). *This is a property of the
   model — nearly hardware-independent* (we measured identical f1 on the 5070 Ti and T4).
 
-| Component | MLPerf framework? |
-|---|---|
-| `reference/` — BERT, ResNet-50, Whisper | ✅ Yes — official LoadGen + reference harness |
-| `tensorrt/` — ResNet-50 + TensorRT SUT | ✅ Yes — official LoadGen, custom optimized backend |
-| `microbench/` — TFLOPS / bandwidth / throughput | ❌ No — a homegrown microbenchmark |
+| Component | Uses MLCommons LoadGen? | Conformant MLPerf? |
+|---|---|---|
+| `reference/` — **BERT** | ✅ LoadGen | ❌ No — 60 s config, 1,000-example SQuAD subset |
+| `reference/` — **ResNet-50** | ✅ LoadGen | ❌ No — 10 s config, Imagenette / 5k-image subset |
+| `reference/` — **Whisper** | ❌ **No LoadGen** — custom sequential loop over ~30–100 files | ❌ No |
+| `tensorrt/` — ResNet-50 + TensorRT SUT | ✅ LoadGen, custom backend | ❌ No — 10 s config, `min_query_count=1`, subset |
+| `microbench/` — TFLOPS / bandwidth / throughput | ❌ No — homegrown timing loop | ❌ No |
 
-The MLPerf **reference** implementations are explicitly *not* optimized (their README says so) — they
-define the benchmark, they don't set hardware records. Real submissions use tuned backends
-(TensorRT, int8) + compliance tests. `tensorrt/` is a step toward that: LoadGen with an optimized
-backend, VALID results — but still a *reference-grade SUT*, not a full submission.
+### Why none of these are conformant MLPerf
+
+[MLPerf Inference rules](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc)
+require, per benchmark: runs of ~**600 s** minimum duration, **minimum query counts**, and an
+**accuracy pass over the complete validation set** — plus compliance tests. They also restrict the
+unqualified "MLPerf" name to conforming results. This suite deliberately uses **short configs and
+subset datasets** for fast iteration on a laptop, so:
+
+- It is **MLPerf-*inspired***, not MLPerf. Numbers must not be published under the MLPerf label.
+- A LoadGen "**VALID**" line means the run satisfied *its own short config's* constraints (it ran
+  longer than that config's `min_duration` with enough queries) — **not** MLPerf conformance.
+- **Whisper is not even LoadGen-based**: the MLCommons Whisper reference SUT uses vLLM (heavy,
+  Blackwell-risky), so we substituted a plain `openai-whisper` loop with the same model and WER
+  metric. It is a *reimplementation of the workload*, not the reference harness.
+
+The MLPerf **reference** backends are also explicitly *not* optimized (their own README says so) —
+they define the benchmark, they don't set hardware records. `tensorrt/` adds an optimized backend
+under LoadGen, but is still a *reference-grade SUT* run under a short config, not a submission.
 
 ## How LoadGen drives a benchmark
 

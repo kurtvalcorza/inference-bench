@@ -1,5 +1,16 @@
 # Results
 
+> ## ⚠️ Unofficial, MLPerf-*inspired* smoke tests — NOT conformant MLPerf
+>
+> These numbers come from **short, non-conformant configs** (10–60 s vs MLPerf's ~600 s) on **subset
+> datasets** (Imagenette / a 5,000-image ImageNet mirror / 1,000 SQuAD examples), and **Whisper does
+> not use LoadGen at all** (custom loop). A LoadGen "VALID" line here means the run met *its own short
+> config*, not MLPerf conformance. **Do not report these under the MLPerf label or use them for
+> procurement.** Background: [architecture.md](architecture.md#what-is-and-isnt-mlperf).
+>
+> They are also **point-in-time** numbers, not yet backed by immutable run bundles (see
+> [Provenance & caveats](#provenance--caveats) at the bottom) — laptop figures vary ±10% run-to-run.
+
 All numbers measured with torch **2.11.0+cu128**, TensorRT **11.1**. Laptop 5070 Ti figures vary
 ±10% run-to-run (thermal throttling); datacenter/Colab figures are stable.
 
@@ -72,17 +83,17 @@ ResNet-50 (img/s), 5070 Ti TensorRT vs 24-thread CPU
 
 ---
 
-## MLPerf Inference — reference implementations
+## MLPerf-*inspired* reference runs (BERT/ResNet = LoadGen on subsets; Whisper = custom loop)
 
-| Domain | Model / dataset | Metric | RTX 5070 Ti | Colab T4 |
-|---|---|---|---|---|
-| NLP | BERT-Large / SQuAD v1.1 | f1 (Offline) | **90.40** | **90.40** |
-| | | throughput | 25.7 samples/s | 10.9 samples/s |
-| Vision | ResNet-50 / ImageNet | top-1 (Imagenette) | 84.5% | 84.6% |
-| | | top-1 (repr. 1000-class) | 75.4% | — |
-| | | throughput (Offline) | 552 samples/s | 304 samples/s |
-| Speech | whisper-large-v3 / LibriSpeech | WER (dev-clean) | 3.6–5.0% | 2.16% |
-| | | RTF | ~0.16 | ~0.31 |
+| Domain | Model / dataset | Harness | Metric | RTX 5070 Ti | Colab T4 |
+|---|---|---|---|---|---|
+| NLP | BERT-Large / SQuAD v1.1 (1k subset) | LoadGen | f1 (Offline) | **90.40** | **90.40** |
+| | | | throughput | 25.7 samples/s | 10.9 samples/s |
+| Vision | ResNet-50 / ImageNet (subset) | LoadGen | top-1 (Imagenette) | 84.5% | 84.6% |
+| | | | top-1 (repr. 1000-class, 5k) | 75.4% | — |
+| | | | throughput (Offline) | 552 samples/s | 304 samples/s |
+| Speech | whisper-large-v3 / LibriSpeech (~30–100 utt) | **custom loop, no LoadGen** | WER (dev-clean) | 3.6–5.0% | 2.16% |
+| | | | RTF | ~0.16 | ~0.31 |
 
 CPU (5070 Ti host, reference): BERT f1 88.74 @ 1.37 samples/s.
 Accuracy is essentially hardware-independent (f1 90.40 identical across GPUs); throughput is the
@@ -90,7 +101,7 @@ hardware signal.
 
 ---
 
-## MLPerf ResNet-50 + TensorRT (fp16, LoadGen) — all VALID
+## LoadGen + TensorRT ResNet-50 (fp16) — LoadGen-VALID under this suite's short config (not MLPerf-conformant)
 
 | Scenario | Metric | RTX 5070 Ti | Colab T4 |
 |---|---|---|---|
@@ -161,13 +172,35 @@ session lifetime, even with `-DGGML_CUDA_FORCE_CUBLAS=ON` and pinned `sm_75`. Ge
 | Path | img/s | What it measures |
 |---|---|---|
 | MLPerf reference (PyTorch) | 552 | unoptimized reference harness |
-| MLPerf + TensorRT (this suite) | ~3,100 | LoadGen + optimized backend, VALID |
+| LoadGen + TensorRT (this suite) | ~3,100 | LoadGen + optimized backend (short config) |
 | Raw microbench (TensorRT) | 4,774 | GPU ceiling, no harness/host overhead |
 
 The gap between the middle and bottom rows is the reference-grade SUT's host overhead
 (per-query numpy copies + lock), not the GPU — see [architecture.md](architecture.md).
 
 ---
+
+## Provenance & caveats
+
+Read this before trusting any number above.
+
+- **Point-in-time, not immutable.** These were recorded across several sessions on a thermally
+  variable laptop and a shared Colab T4. They are **not yet backed by immutable run bundles**
+  (raw logs + command + commit + dataset/model checksums + env versions + exit status). A
+  `scripts/run_bundle.sh` wrapper now emits such a bundle for new runs — prefer regenerating over
+  citing these.
+- **The checked-in notebooks are not the source of every number.** Some notebook cells were re-run
+  out of band, some `*_output.ipynb` performance/accuracy cells are empty, and a few figures come
+  from later/cached runs. Concretely: the reference ResNet Offline figure is quoted as **552**
+  (a later run) while one checked-in notebook cell shows **472**; both are the same unoptimized
+  reference path on the 5070 Ti and differ within the ±10% laptop spread. Treat single-run numbers
+  as approximate.
+- **Subsets, not full validation sets.** Accuracy (top-1, f1, WER) is over small subsets, so it is
+  only a sanity indicator, not a conformant accuracy result.
+- **How to reproduce cleanly:** run the script under `scripts/run_bundle.sh` (see
+  [user-guide.md](user-guide.md)), which pins versions, checksums assets, captures the full
+  environment, and writes a parsed result alongside the raw logs. That bundle — not this table — is
+  the citable artifact.
 
 ## Pending
 

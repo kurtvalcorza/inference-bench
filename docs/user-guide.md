@@ -25,9 +25,11 @@ compare machines. Runs on any CUDA GPU / any CPU.
 
 ---
 
-## 2. MLPerf ResNet-50 + TensorRT (the "official MLPerf way")
+## 2. LoadGen + TensorRT ResNet-50 (MLPerf-inspired, non-conformant)
 
-LoadGen harness driving an optimized TensorRT fp16 SUT → **VALID** results with p99 latency.
+LoadGen harness driving an optimized TensorRT fp16 SUT → SingleStream/Offline/accuracy. A LoadGen
+"VALID" line means the run met *this suite's short config* (10 s), **not** conformant MLPerf — see
+[architecture.md](architecture.md#what-is-and-isnt-mlperf).
 
 ```bash
 bash tensorrt/trt_mlperf_run.sh                 # default max-batchsize 128
@@ -158,6 +160,6 @@ apt-get install -y cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 cuda-n
 |---|---|
 | Quick cross-hardware compare | `microbench/gpu_bench.py` |
 | Compare CPUs (work machines) | `microbench/cpu_bench.py` |
-| A *real MLPerf* hardware number (optimized) | `tensorrt/trt_mlperf_run.sh` |
+| A LoadGen+TensorRT hardware number (MLPerf-inspired, not conformant) | `tensorrt/trt_mlperf_run.sh` |
 | MLPerf accuracy + reference behavior | `reference/local/*.ipynb` |
 | Run on a cloud GPU without a local one | `reference/colab/*.ipynb` via colab CLI |

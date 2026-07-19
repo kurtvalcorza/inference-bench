@@ -5,18 +5,30 @@ benchmarks** across heterogeneous hardware — a laptop **RTX 5070 Ti** (Blackwe
 **Colab T4** (Turing, sm_75), datacenter GPUs (**A100/H200**), and CPUs — with reproducible
 scripts, notebooks, and results.
 
-It contains two distinct things, kept clearly separate:
+> ## ⚠️ These are NOT official MLPerf results
+>
+> This is an **unofficial, MLPerf-*inspired* smoke-test suite** for quick cross-hardware
+> comparison — **not** a conformant [MLPerf Inference](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc)
+> submission. Specifically:
+> - Runs use **short, non-conformant configs** (10–60 s, reduced query counts) instead of MLPerf's
+>   ~600 s minimums, and **subset datasets** (Imagenette / a 5,000-image ImageNet mirror / 1,000
+>   SQuAD examples) instead of the full validation sets.
+> - **Whisper does not use LoadGen at all** — it's a custom sequential loop (same model + WER metric).
+> - A LoadGen "**VALID**" line here means the run met *its own short config's* timing — it is **not**
+>   a conformant MLPerf VALID result.
+>
+> **Do not report these numbers as MLPerf results or use them for hardware-procurement decisions
+> under the MLPerf label.** Treat them as "does my GPU roughly do what I expect" checks. Full detail:
+> [docs/architecture.md](docs/architecture.md#what-is-and-isnt-mlperf).
+
+It contains four kinds of thing, kept clearly separate:
 
 | | What | Framework |
 |---|---|---|
-| **`reference/`** | MLPerf Inference reference implementations (BERT, ResNet-50, Whisper) | **Official MLCommons** LoadGen harness |
-| **`tensorrt/`** | MLPerf ResNet-50 with an optimized **TensorRT** backend | **Official MLCommons** LoadGen + custom SUT |
+| **`reference/`** | MLPerf-*inspired* reference runs (BERT, ResNet-50, Whisper) | MLCommons LoadGen for **BERT + ResNet** (short configs); **Whisper = custom loop, no LoadGen** |
+| **`tensorrt/`** | ResNet-50 with an optimized **TensorRT** backend | MLCommons LoadGen + custom SUT (short, non-conformant config) |
 | **`microbench/`** | Raw GPU/CPU microbenchmarks (TFLOPS, bandwidth, throughput) | **Custom** (not MLPerf) |
 | **`standards/`** | Other standards: Polygraphy/trtexec, llama.cpp, AI-Benchmark, MLPerf Client | Third-party |
-
-> **Honesty note.** Only `reference/` and `tensorrt/` use the real MLCommons framework.
-> `microbench/` is homegrown — accurate for comparing hardware, but not MLPerf. See
-> [docs/architecture.md](docs/architecture.md#what-is-and-isnt-mlperf).
 
 ## Quick start
 
@@ -29,8 +41,8 @@ wsl -d mlperf && source /root/mlperf/venv/bin/activate
 python microbench/gpu_bench.py            # GPU: TFLOPS, bandwidth, ResNet-50 throughput
 python microbench/cpu_bench.py            # CPU-only version
 
-# 2. MLPerf + TensorRT (the "official MLPerf way" of HW benchmarking)
-bash tensorrt/trt_mlperf_run.sh           # ResNet-50: VALID SingleStream + Offline + accuracy
+# 2. LoadGen + TensorRT (MLPerf-inspired, non-conformant smoke test)
+bash tensorrt/trt_mlperf_run.sh           # ResNet-50: SingleStream + Offline + accuracy
 
 # 3. MLPerf reference implementations — via Jupyter notebooks
 jupyter lab --no-browser --ip 0.0.0.0 --port 8888 --allow-root
@@ -74,13 +86,16 @@ inference-bench/
 
 ## Results at a glance
 
+Point-in-time smoke-test numbers (see the disclaimer above — **not** official MLPerf); laptop
+figures vary ±10% run-to-run. Provenance and caveats: [docs/results.md](docs/results.md).
+
 | Benchmark | RTX 5070 Ti | Colab T4 |
 |---|---|---|
-| **MLPerf ResNet-50 (TensorRT)** — Offline | ~3,100 img/s | 1,200 img/s |
-| **MLPerf ResNet-50 (TensorRT)** — SingleStream p90 | ~4.2 ms | 2.80 ms |
-| MLPerf BERT/SQuAD (reference) — f1 | 90.40 | 90.40 |
-| MLPerf ResNet-50 (reference) — top-1 | 75.4% / 84.5% | 84.6% |
-| MLPerf Whisper (reference) — WER | ~3.5–5% | 2.16% |
+| LoadGen+TensorRT ResNet-50 — Offline | ~3,100 img/s | 1,200 img/s |
+| LoadGen+TensorRT ResNet-50 — SingleStream p90 | ~4.2 ms | 2.80 ms |
+| BERT/SQuAD (LoadGen, 1k subset) — f1 | 90.40 | 90.40 |
+| ResNet-50 (LoadGen, subset) — top-1 | 75.4% / 84.5% | 84.6% |
+| Whisper (custom loop, no LoadGen) — WER | ~3.5–5% | 2.16% |
 | microbench ResNet-50 fp16 (TensorRT) | 4,774 img/s | 1,945 img/s |
 | microbench FP16 / BF16 TFLOPS | 42.7 / 51.4 | 22.7 / 2.1 |
 | Polygraphy (trtexec) ResNet-50 fp16 bs128 | ~3,965 img/s | — |

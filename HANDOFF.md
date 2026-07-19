@@ -49,7 +49,7 @@ solid A100/H200-vs-5070Ti/T4 comparison.
 
 ---
 
-## 2. MLPerf ResNet-50 + TensorRT — the "official MLPerf" number (VALID LoadGen result)
+## 2. LoadGen + TensorRT ResNet-50 — MLPerf-inspired (NOT official MLPerf; short config)
 
 ```bash
 pip install tensorrt onnx                    # (the script also does this if missing)
