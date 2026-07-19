@@ -1,0 +1,4 @@
+# Shell scripts must be LF so they run on Linux/WSL regardless of the cloner's
+# core.autocrlf setting (a CRLF shebang breaks bash with a \r error).
+*.sh   text eol=lf
+*.py   text eol=lf
