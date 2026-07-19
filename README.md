@@ -1,4 +1,4 @@
-# MLPerf Suite
+# inference-bench
 
 A self-contained suite for running **ML inference benchmarks** and **GPU/CPU hardware
 benchmarks** across heterogeneous hardware — a laptop **RTX 5070 Ti** (Blackwell, sm_120), a
@@ -43,7 +43,7 @@ Colab (headless via the `google-colab-cli`) and per-benchmark instructions are i
 ## Repository layout
 
 ```
-mlperf-suite/
+inference-bench/
 ├── README.md                     ← you are here
 ├── docs/
 │   ├── setup.md                  ← WSL distro, deps, Colab CLI, HF, TensorRT
