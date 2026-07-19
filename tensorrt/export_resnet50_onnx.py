@@ -13,6 +13,10 @@ import os, sys, torch, torchvision
 out = sys.argv[1] if len(sys.argv) > 1 else "resnet50_fp16_dyn.onnx"
 pth = os.environ.get("RESNET50_PTH", "")
 
+if not torch.cuda.is_available():
+    sys.exit("ERROR: no CUDA GPU visible — this exports an fp16 model built on cuda. "
+             "Run it on the GPU box (check CUDA_VISIBLE_DEVICES if a GPU is present).")
+
 if pth and os.path.exists(pth):
     sd = torch.load(pth, map_location="cpu", weights_only=False)
     m = torchvision.models.resnet50()

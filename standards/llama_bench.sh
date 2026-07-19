@@ -21,8 +21,14 @@ if [ "$MODE" = cuda ]; then
   # needs the CUDA toolkit (nvcc). NVIDIA apt pkgs: cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 cuda-nvrtc-dev-12-8
   CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
   [ -d "$CUDA_HOME/bin" ] && export PATH="$CUDA_HOME/bin:$PATH" CUDACXX="$CUDA_HOME/bin/nvcc"
-  # "native" builds for the visible GPU only (portable across A100/H200/Blackwell). Override with CUDA_ARCH=80,90,...
-  ARCH="${CUDA_ARCH:-native}"
+  # Detect the GPU's compute capability (A100->80, H200->90, Blackwell->120) so the build works on
+  # any CMake version. Only fall back to "native" (needs CMake>=3.24, absent on Ubuntu 22.04's 3.22)
+  # if detection fails. Override explicitly with CUDA_ARCH=80,90,...
+  if [ -n "${CUDA_ARCH:-}" ]; then ARCH="$CUDA_ARCH"
+  else
+    CC=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '. ')
+    ARCH="${CC:-native}"
+  fi
   BUILD=build-cuda; EXTRA="-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$ARCH"; NGL="-ngl 99"
   echo "CUDA build: arch=$ARCH  nvcc=$(command -v nvcc || echo MISSING)"
 else

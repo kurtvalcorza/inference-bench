@@ -32,7 +32,11 @@ fi
 
 ONNX=${1:-$BENCH_ROOT/vision/resnet50_fp16_dyn.onnx}   # fp16 dynamic-batch ResNet-50
 BS=${BS:-128}
-[ -s "$ONNX" ] || python "$REPO_ROOT/tensorrt/export_resnet50_onnx.py" "$ONNX"
+if [ ! -s "$ONNX" ]; then
+  python -c "import torch, torchvision" 2>/dev/null || {
+    echo "!! torch+torchvision required to build the ONNX (setup.md §2), or pass a prebuilt ONNX as arg 1"; exit 1; }
+  python "$REPO_ROOT/tensorrt/export_resnet50_onnx.py" "$ONNX"
+fi
 
 echo "polygraphy: $ONNX  batch=$BS"
 polygraphy run "$ONNX" --trt --input-shapes x:[$BS,3,224,224] --warm-up 25 --iterations 200

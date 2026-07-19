@@ -57,20 +57,29 @@ CONF
 
 echo "===== install TensorRT backend into the harness ====="
 cp "$SCRIPT_DIR/backend_tensorrt.py" "$H/python/backend_tensorrt.py"
-python - "$H/python/main.py" <<'PY'
+if ! python - "$H/python/main.py" <<'PY'
 import sys
 f = sys.argv[1]; s = open(f).read()
-if "backend_tensorrt" not in s:
-    a = '    elif backend == "pytorch-native":'
-    ins = '    elif backend == "tensorrt":\n        from backend_tensorrt import BackendTensorRT\n\n        backend = BackendTensorRT()\n'
-    s = s.replace(a, ins + a, 1); open(f, "w").write(s); print("main.py patched: +tensorrt backend")
-else:
-    print("main.py already has tensorrt backend")
+if "backend_tensorrt" in s:
+    print("main.py already has tensorrt backend"); sys.exit(0)
+a = '    elif backend == "pytorch-native":'
+if a not in s:                      # upstream is a fresh --depth 1 clone => a moving target
+    sys.exit(f"ERROR: anchor {a!r} not found in main.py — upstream layout changed; "
+             f"update the patcher in trt_mlperf_run.sh (do not run with an unpatched harness).")
+ins = '    elif backend == "tensorrt":\n        from backend_tensorrt import BackendTensorRT\n\n        backend = BackendTensorRT()\n'
+s = s.replace(a, ins + a, 1)
+assert "backend_tensorrt" in s, "replace() did not insert the tensorrt branch"   # never silently 'succeed'
+open(f, "w").write(s); print("main.py patched: +tensorrt backend")
 PY
+then echo "!! main.py patch failed — aborting"; exit 1; fi
 
 echo
 echo "===== export fp16 dynamic-batch ONNX ====="
-[ -s "$ONNX" ] || python "$SCRIPT_DIR/export_resnet50_onnx.py" "$ONNX"
+if [ ! -s "$ONNX" ]; then
+  python -c "import torch, torchvision" 2>/dev/null || {
+    echo "!! torch+torchvision required to export $ONNX (setup.md §2: install torch cu128), or pass a prebuilt ONNX via ONNX=..."; exit 1; }
+  python "$SCRIPT_DIR/export_resnet50_onnx.py" "$ONNX"
+fi
 ls -lh "$ONNX"
 
 echo
