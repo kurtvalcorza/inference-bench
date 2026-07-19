@@ -24,9 +24,9 @@ MAXBS=32 bash trt_mlperf_run.sh        # override
 
 | Scenario | RTX 5070 Ti | Colab T4 |
 |---|---|---|
-| SingleStream p90 | ~4.2 ms | 2.80 ms |
-| Offline | ~3,100 img/s | 1,200 img/s |
-| Accuracy | 75.4% / 84.5% | 84.6% |
+| SingleStream p90 | 2.39 ms (VALID) | 2.80 ms |
+| Offline | 3,652 img/s (VALID) | 1,200 img/s |
+| Accuracy | 75.44% / 84.5% | 84.6% |
 
 This is a **reference-grade SUT** (host-bound: per-query numpy copies + lock) — Offline throughput is
 below the raw GPU ceiling (`microbench` 4,774). A submission would use pinned memory + async I/O.

@@ -48,8 +48,12 @@ Every non-obvious fix discovered while building this suite. Grouped by area.
   TF/onnx path uses a 1001-class model with `offset=-1`; don't mix them.
 - **Offline perf over-issues** (query = `target_qps × min_duration`); a naive CPU run took ~3 h and
   wrote a 550 MB trace. Bound it via user.conf (`target_qps`, `min_duration`, `min_query_count`).
-- **VALID tuning:** a run must exceed `min_duration` (10 s). SingleStream → raise `min_query_count`
-  (≈4000 at ~390 QPS); Offline → raise `target_qps` so the coalesced query runs > 10 s.
+- **VALID tuning:** a run must exceed `min_duration` (10 s), else `Result is : INVALID` with
+  `Min duration satisfied : NO`. SingleStream → set `min_query_count > QPS × 10`; the 5070 Ti now
+  does ~580 QPS at batch-1, so the old 4000 (tuned for ~390 QPS) finished in ~7 s and went INVALID —
+  bumped to **12000** (covers ~390–1000 QPS). Offline → raise `target_qps` so the coalesced query
+  runs > 10 s. The suite's runner **fails loudly** (exit 1) on any non-VALID scenario, so a mistuned
+  config surfaces instead of silently reporting a bad number.
 
 ## MLPerf BERT harness
 

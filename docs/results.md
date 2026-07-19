@@ -105,13 +105,15 @@ hardware signal.
 
 | Scenario | Metric | RTX 5070 Ti | Colab T4 |
 |---|---|---|---|
-| SingleStream | p50 latency | 2.23 ms | 2.63 ms |
-| | **p90 latency** | ~4.2 ms† | **2.80 ms** |
-| | p99 latency | 8.12 ms | 4.70 ms |
-| Offline | **throughput** | **~3,100–3,325 img/s** | 1,200 img/s |
-| Accuracy | top-1 | 75.4% (repr) / 84.5% (Imagenette) | 84.6% (Imagenette) |
+| SingleStream | **p90 latency** | **2.39 ms** (VALID)‡ | **2.80 ms** |
+| | QPS (batch-1) | 561 | — |
+| Offline | **throughput** | **3,652 img/s** (VALID)‡ | 1,200 img/s |
+| Accuracy | top-1 | 75.44% (repr, 5k) / 84.5% (Imagenette) | 84.6% (Imagenette) |
 
-† Laptop SingleStream latency is noisy (4.17 ms one run, 10.3 ms another — thermal).
+‡ 5070 Ti figures are from a bundle-backed run (`results/bundles/…-trt-5070ti-retune`, all three
+scenarios LoadGen-VALID, `INFERENCE_REF=da738a5`, `MAXBS=128`). Earlier laptop SingleStream runs
+were noisy/INVALID at `min_query_count=4000` (the card now does ~580 QPS, so 4000 queries finished in
+~7 s < the 10 s min-duration); bumping to 12000 makes it VALID — see [gotchas.md](gotchas.md).
 
 **Findings.** The T4 has *lower, cleaner* single-stream latency (stable clock beats a throttling
 laptop at batch-1, where the workload is latency/host-bound). The 5070 Ti has ~2.7× the Offline

@@ -54,7 +54,10 @@ echo "harness commit: $(git -C "$INFERENCE_REPO" rev-parse --short HEAD 2>/dev/n
 
 cat > "$CONF" <<'CONF'
 resnet50.SingleStream.min_duration = 10000
-resnet50.SingleStream.min_query_count = 4000
+# min_query_count must exceed QPS x (min_duration/1000) or the run ends before 10s => INVALID
+# ("Min duration satisfied: NO"). The 5070 Ti does ~580 QPS at batch-1 (1.4ms), so 4000 finished
+# in ~7s. 12000 keeps it >10s across laptop-throttle (~390) up to ~1000 QPS datacenter single-stream.
+resnet50.SingleStream.min_query_count = 12000
 resnet50.Offline.target_qps = 12000
 resnet50.Offline.min_duration = 10000
 resnet50.Offline.min_query_count = 1
