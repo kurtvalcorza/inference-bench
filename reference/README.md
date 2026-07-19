@@ -27,8 +27,8 @@ Fixes explained: [../docs/gotchas.md](../docs/gotchas.md).
 > **Supply-chain hardening.** The **`local/`** notebooks are hardened: they pin the harness to
 > `mlcommons/inference@da738a5`, pin package versions, and **SHA-256-verify every downloaded model /
 > dataset** against [CHECKSUMS.md](CHECKSUMS.md) before use (the ResNet checkpoint tries
-> `weights_only=True` first, and is only loaded because it's verified). The one exception is the
-> Imagenette archive, which runs in record-mode until pinned (see CHECKSUMS.md). The **`colab/`**
-> notebooks are hardened the same way. Notebooks still commonly run **as root** in the WSL distro, so
-> run them against sources you trust. The fully checksum-enforced path remains
-> `tensorrt/trt_mlperf_run.sh`.
+> `weights_only=True` first, and is only loaded because it's verified). The Imagenette archive is now
+> pinned too and verified **before extraction** (the hash is the trust anchor — any mirror matching it
+> is fine; see CHECKSUMS.md). The **`colab/`** notebooks are hardened the same way. Notebooks still
+> commonly run **as root** in the WSL distro, so run them against sources you trust. The fully
+> checksum-enforced path remains `tensorrt/trt_mlperf_run.sh`.
