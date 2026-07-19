@@ -99,6 +99,8 @@ Full tables (incl. CPU, latency percentiles, per-batch curves) in [docs/results.
 
 ## License / provenance
 
-Wraps [`mlcommons/inference`](https://github.com/mlcommons/inference) (Apache-2.0). Models/datasets
-are downloaded from their original sources (Zenodo, OpenSLR, Hugging Face, fast.ai) at run time.
-The suite's own scripts and docs are provided as-is.
+This suite is licensed under the **Apache License 2.0** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+It wraps [`mlcommons/inference`](https://github.com/mlcommons/inference) (Apache-2.0), cloned at run
+time rather than redistributed. Models/datasets are downloaded from their original sources (Zenodo,
+OpenSLR, Hugging Face, fast.ai) at run time under their own licenses.

@@ -1,0 +1,16 @@
+inference-bench
+Copyright 2026 Kurt Valcorza
+
+This product includes software developed as part of the following projects:
+
+- MLCommons Inference (https://github.com/mlcommons/inference), licensed under
+  the Apache License 2.0. This suite drives the MLPerf reference harness and
+  LoadGen; that code is cloned from its original source at run time and is not
+  redistributed here.
+
+- The minimal BERT tokenizer used by the BERT/SQuAD reference notebook is derived
+  from google-research/bert (https://github.com/google-research/bert), licensed
+  under the Apache License 2.0 (TensorFlow and the vocab/WordPiece pieces removed).
+
+Models and datasets are downloaded from their original sources (Zenodo, OpenSLR,
+Hugging Face, fast.ai) at run time under their respective licenses.
