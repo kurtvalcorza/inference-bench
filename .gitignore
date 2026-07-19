@@ -22,6 +22,9 @@ mlperf_log_*.txt
 mlperf_log_*.json
 *.log
 
+# Run bundles (generated on the benchmark host; commit deliberately with `git add -f`)
+results/bundles/
+
 # OS
 .DS_Store
 Thumbs.db

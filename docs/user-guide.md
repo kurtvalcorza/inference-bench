@@ -5,6 +5,19 @@ How to run each benchmark. All commands assume the `mlperf` WSL distro with the 
 
 ---
 
+## 0. Recording a citable result (recommended)
+
+Any number worth keeping should be produced inside a **run bundle** — an immutable snapshot of the
+command, repo commit, `pip freeze`, GPU/driver, asset SHA-256s, full logs, and real exit status:
+
+```bash
+bash scripts/run_bundle.sh trt-5070ti -- bash tensorrt/trt_mlperf_run.sh
+bash scripts/run_bundle.sh micro-a100 -- python microbench/gpu_bench.py
+```
+
+Bundles land in `results/bundles/<UTC>-<label>/` (gitignored). That directory — not the
+[results.md](results.md) tables — is what you cite or hand back. See [results/README.md](../results/README.md).
+
 ## 1. Microbenchmarks (fastest — start here)
 
 Custom, portable, not MLPerf. Auto-detect the device; print a table + JSON.
