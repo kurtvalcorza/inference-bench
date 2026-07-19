@@ -15,7 +15,7 @@ later run would silently accept.
 
 Needs: pip install "huggingface_hub>=0.24,<1.0" pyarrow   # hub 1.x breaks transformers 4.48
 """
-import os, sys, shutil
+import os, sys, shutil, tempfile
 from collections import Counter
 
 REPO = "Tsomaros/Imagenet-1k_validation"        # class-sorted, 50/class
@@ -42,9 +42,9 @@ def build(out_dir):
     from huggingface_hub import HfApi, hf_hub_download
 
     out = os.path.abspath(out_dir)
-    tmp = out + ".building"                       # build here, swap in only once validated
-    shutil.rmtree(tmp, ignore_errors=True)
-    os.makedirs(tmp, exist_ok=True)
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    # unique temp sibling (same filesystem => atomic os.replace) so concurrent builds can't collide
+    tmp = tempfile.mkdtemp(prefix=os.path.basename(out) + ".building.", dir=os.path.dirname(out) or ".")
 
     files = sorted(f for f in HfApi().list_repo_files(REPO, repo_type="dataset") if f.endswith(".parquet"))
     g = k = 0

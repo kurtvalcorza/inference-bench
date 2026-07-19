@@ -43,14 +43,25 @@ python -c "import tensorrt, onnx"  2>/dev/null || pip install -q tensorrt onnx
 python -c "import cv2"             2>/dev/null || pip install -q opencv-python-headless
 python -c "import pycocotools"     2>/dev/null || pip install -q pycocotools   # main.py imports coco unconditionally
 
-# --- harness (pinned for reproducibility) -----------------------------------
+# --- harness (pin ENFORCED every run, not just on fresh clone) --------------
 INFERENCE_REF="${INFERENCE_REF:-da738a5}"   # commit the notebooks/results were produced against
 if [ ! -d "$H" ]; then
-  echo "===== cloning mlcommons/inference @ $INFERENCE_REF into $INFERENCE_REPO ====="
+  echo "===== cloning mlcommons/inference into $INFERENCE_REPO ====="
   git clone --filter=blob:none --no-checkout https://github.com/mlcommons/inference.git "$INFERENCE_REPO"
-  git -C "$INFERENCE_REPO" checkout -q "$INFERENCE_REF" || { echo "!! could not checkout $INFERENCE_REF"; exit 1; }
 fi
-echo "harness commit: $(git -C "$INFERENCE_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown) (pin: $INFERENCE_REF)"
+# Resolve the pin (fetch it if a cached clone lacks it); fail on an invalid ref.
+want=$(git -C "$INFERENCE_REPO" rev-parse -q --verify "$INFERENCE_REF^{commit}" 2>/dev/null || true)
+if [ -z "$want" ]; then
+  git -C "$INFERENCE_REPO" fetch --filter=blob:none -q origin "$INFERENCE_REF" 2>/dev/null || true
+  want=$(git -C "$INFERENCE_REPO" rev-parse -q --verify "$INFERENCE_REF^{commit}" 2>/dev/null || true)
+fi
+[ -z "$want" ] && { echo "!! INFERENCE_REF=$INFERENCE_REF is not a valid commit in the harness clone — refusing to run"; exit 1; }
+# Force the working tree to EXACTLY the pin every run. This discards any drift or a prior run's
+# main.py patch (re-applied below), so a cached clone at another revision can't silently be used.
+git -C "$INFERENCE_REPO" reset --hard -q "$want" || { echo "!! could not pin harness to $INFERENCE_REF"; exit 1; }
+have=$(git -C "$INFERENCE_REPO" rev-parse HEAD)
+[ "$have" = "$want" ] || { echo "!! harness pin mismatch: HEAD $have != $want"; exit 1; }
+echo "harness pinned: $(git -C "$INFERENCE_REPO" rev-parse --short HEAD) (INFERENCE_REF=$INFERENCE_REF)"
 
 cat > "$CONF" <<'CONF'
 resnet50.SingleStream.min_duration = 10000
@@ -107,7 +118,23 @@ PY
   BENCH_ROOT="$BENCH_ROOT" python "$SCRIPT_DIR/build_imagenet_subset.py" "$DATA" || {
     echo "!! subset build failed. Point DATA=... at a val set with val_map.txt (e.g. Imagenette) and re-run."; exit 1; }
 fi
-echo "DATA=$DATA  ($(wc -l < "$VMAP") images)"
+# Validate the dataset whether just built OR pre-existing/cached — a non-empty val_map is NOT enough
+# (a partial/poisoned set from an older build could linger). Every referenced image must exist & be
+# non-empty; fail loudly instead of scoring against a broken set.
+python - "$DATA" "$VMAP" <<'PY' || { echo "!! dataset validation failed at $DATA — rebuild or point DATA= at a good val set"; exit 1; }
+import os, sys
+data, vmap = sys.argv[1], sys.argv[2]
+rows = [ln.split() for ln in open(vmap) if ln.strip()]
+if not rows:
+    sys.exit("empty val_map")
+bad = [r[0] for r in rows if len(r) < 2 or not (
+    os.path.isfile(os.path.join(data, r[0])) and os.path.getsize(os.path.join(data, r[0])) > 0)]
+if bad:
+    sys.exit(f"{len(bad)}/{len(rows)} val_map entries missing/empty/malformed (e.g. {bad[:3]})")
+print(f"dataset OK: {len(rows)} images, all present")
+PY
+EXPECTED=$(grep -c . "$VMAP")     # expected sample count for the accuracy cross-check (#5)
+echo "DATA=$DATA  ($EXPECTED images)"
 
 cd "$H/python"
 # Fresh, unique output dir per invocation so a failed run can NEVER reprint a prior run's summary.
@@ -145,9 +172,15 @@ run_main Offline "" "$RUNROOT/Offline"; check_valid Offline "$RUNROOT/Offline" $
 echo
 echo "############ Accuracy (top-1, fp16 TRT) ############"
 # main.py's post-test percentile stats crash AFTER LoadGen writes the accuracy log (known numpy
-# issue) => gate on the freshly-written artifact, not the exit code.
+# issue). We tolerate ONLY that: gate on the freshly-written artifact AND require the scorer to have
+# processed EVERY sample (total == EXPECTED) — so a crash that produced only a favorable subset can't
+# sneak past the 70% floor.
 ACC="$RUNROOT/Accuracy"
-run_main Offline "--accuracy" "$ACC" || true
+run_main Offline "--accuracy" "$ACC"; ACC_RC=$?
+# tolerate the known post-run numpy percentile crash; anything else is suspicious
+if [ "$ACC_RC" -ne 0 ] && ! grep -qiE "percentile|numpy|IndexError|zero-size" "$ACC/run.log"; then
+  echo "!! accuracy: main.py exited $ACC_RC for an UNRECOGNIZED reason (not the known post-run stats crash)"; tail -20 "$ACC/run.log"; FAILED=1
+fi
 AJSON="$ACC/mlperf_log_accuracy.json"
 if [ ! -s "$AJSON" ]; then
   echo "!! accuracy: no mlperf_log_accuracy.json produced"; tail -20 "$ACC/run.log"; FAILED=1
@@ -156,9 +189,11 @@ else
     --imagenet-val-file "$VMAP" --dtype float32 2>&1 | tail -1)
   echo "$ACC_OUT"
   TOP1=$(echo "$ACC_OUT" | grep -oE "[0-9]+\.[0-9]+" | head -1)
-  if   [ -z "$TOP1" ];                             then echo "!! accuracy: could not parse top-1 from scorer"; FAILED=1
-  elif awk "BEGIN{exit !($TOP1 < $ACC_MIN)}";      then echo "!! accuracy ${TOP1}% < floor ${ACC_MIN}% — suspect run"; FAILED=1
-  else echo "accuracy OK: ${TOP1}% (>= ${ACC_MIN}%)"; fi
+  TOTAL=$(echo "$ACC_OUT" | grep -oE "total=[0-9]+" | grep -oE "[0-9]+" | head -1)
+  if   [ -z "$TOP1" ];                              then echo "!! accuracy: could not parse top-1 from scorer"; FAILED=1
+  elif [ -z "$TOTAL" ] || [ "$TOTAL" -ne "$EXPECTED" ]; then echo "!! accuracy scored ${TOTAL:-0}/$EXPECTED samples — partial/failed run, rejecting"; FAILED=1
+  elif awk "BEGIN{exit !($TOP1 < $ACC_MIN)}";       then echo "!! accuracy ${TOP1}% < floor ${ACC_MIN}% — suspect run"; FAILED=1
+  else echo "accuracy OK: ${TOP1}% over all $TOTAL samples (>= ${ACC_MIN}%)"; fi
 fi
 
 echo

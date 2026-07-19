@@ -120,24 +120,18 @@ Runs on Windows / Linux / Mac. Paste each machine's JSON to compare.
 
 ## 5. Representative ImageNet (optional, for a real ~76% top-1)
 
-The full ImageNet val is gated; use the ungated HF mirror and keep a balanced 5/class subset
-(all 1000 classes) — no token needed:
+The full ImageNet val is gated; use the ungated HF mirror to build a balanced 5/class subset (all
+1000 classes) — no token needed. **Use the validated builder** (it writes to a temp dir, checks the
+5×1000 balance and that every image is present, then atomically swaps into place — so a failed
+download never leaves a poisoned `val_map.txt`). Don't hand-roll a direct-write loop:
 
-```python
-import os, pyarrow.parquet as pq
-from huggingface_hub import HfApi, hf_hub_download
-REPO = "Tsomaros/Imagenet-1k_validation"       # standard 1000-class labels, class-sorted (50/class)
-files = sorted(f for f in HfApi().list_repo_files(REPO, repo_type="dataset") if f.endswith(".parquet"))
-OUT = "/root/mlperf/vision/inet_val"; os.makedirs(OUT, exist_ok=True)
-g = k = 0; vm = open(f"{OUT}/val_map.txt", "w")
-for fn in files:
-    t = pq.read_table(hf_hub_download(REPO, fn, repo_type="dataset"))
-    for img, lab in zip(t.column("image").to_pylist(), t.column("label").to_pylist()):
-        if g % 10 == 0:                        # every 10th row => 5 per class, all 1000 classes
-            open(f"{OUT}/{k:05d}.JPEG", "wb").write(img["bytes"]); vm.write(f"{k:05d}.JPEG {int(lab)}\n"); k += 1
-        g += 1
-vm.close(); print("kept", k)
+```bash
+pip install "huggingface_hub>=0.24,<1.0" pyarrow      # hub 1.x breaks transformers 4.48
+BENCH_ROOT=/root/mlperf python tensorrt/build_imagenet_subset.py /root/mlperf/vision/inet_val
 ```
+
+`trt_mlperf_run.sh` calls this automatically when `DATA` has no `val_map.txt`, and validates any
+pre-existing dataset before use.
 
 Then point any ResNet-50 run's `--dataset-path` at `/root/mlperf/vision/inet_val`.
 
