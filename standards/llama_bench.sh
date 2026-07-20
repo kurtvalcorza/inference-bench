@@ -32,6 +32,9 @@ fi
 [ -z "$w" ] && { echo "!! LLAMA_REF=$LLAMA_REF not found in llama.cpp clone"; exit 1; }
 # reset --hard (not checkout) so a cached clone with dirty TRACKED changes can't silently be built.
 git -C llama.cpp reset --hard -q "$w" || { echo "!! could not pin llama.cpp to $LLAMA_REF"; exit 1; }
+# Also drop UNTRACKED drift that could alter the CMake configure / compile (finding #5), but keep our
+# own build output dirs so a cached build isn't thrown away every run.
+git -C llama.cpp clean -fdq -e build-cuda -e build-cpu
 echo "llama.cpp pinned: $(git -C llama.cpp rev-parse --short HEAD) (LLAMA_REF=$LLAMA_REF)"
 cd llama.cpp
 

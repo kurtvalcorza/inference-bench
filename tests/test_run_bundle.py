@@ -85,3 +85,28 @@ def test_no_stale_trt_logs_attached():
     finally:
         shutil.rmtree(fake_bench, ignore_errors=True)
         shutil.rmtree(tmp_results, ignore_errors=True)
+
+
+def test_marker_run_dir_is_attached_by_identity():
+    """Finding #4: a wrapped command that reports its run dir via BUNDLE_RUNROOT_FILE gets exactly
+    that dir attached — by identity, not a global before/after diff."""
+    fake_bench = tempfile.mkdtemp(prefix="rb_bench_")
+    tmp_results = tempfile.mkdtemp(prefix="rb_res_")
+    try:
+        # This inner command mimics the runner: create a unique run dir and record it in the marker.
+        inner = (
+            'd="$BENCH_ROOT/vision/runs/mine.$$"; mkdir -p "$d"; '
+            'echo hello > "$d/mlperf_log_summary.txt"; '
+            'printf "%s\\n" "$d" > "$BUNDLE_RUNROOT_FILE"; echo ran'
+        )
+        env = {**os.environ, "RESULTS_ROOT": tmp_results, "BENCH_ROOT": fake_bench}
+        subprocess.run(["bash", str(BUNDLE), "marker", "--", "bash", "-c", inner],
+                       cwd=ROOT, capture_output=True, text=True, env=env)
+        b = sorted(p for p in pathlib.Path(tmp_results).iterdir() if p.is_dir())[-1]
+        copied = list((b / "tensorrt_run").rglob("mlperf_log_summary.txt"))
+        assert copied, "the run dir named in the marker must be copied into tensorrt_run/"
+        assert copied[0].read_text().strip() == "hello"
+        assert not (b / ".trt_runroot").exists(), "the marker file itself must not linger in the bundle"
+    finally:
+        shutil.rmtree(fake_bench, ignore_errors=True)
+        shutil.rmtree(tmp_results, ignore_errors=True)

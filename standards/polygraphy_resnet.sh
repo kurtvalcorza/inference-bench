@@ -20,9 +20,17 @@ if [ -z "${BENCH_ROOT:-}" ]; then
 fi
 mkdir -p "$BENCH_ROOT/vision"
 
-# Pinned to the validated stack in ../requirements.txt (finding #8: don't install "latest").
-pip show polygraphy >/dev/null 2>&1 || pip install -q "polygraphy==0.50.3" colored
-python -c "import tensorrt, onnx" 2>/dev/null || pip install -q "tensorrt==11.1.0.106" "onnx==1.22.0"   # need BOTH
+# ENFORCE the validated pins (finding #6): an already-installed but DIFFERENT version must not pass a
+# mere `pip show` / import check — compare the installed version and reinstall on mismatch.
+require_version () {  # dist  expected  pip_args...
+  local dist="$1" want="$2"; shift 2
+  local have; have=$(python -c "from importlib.metadata import version; print(version('$dist'))" 2>/dev/null || true)
+  [ "$have" = "$want" ] || { echo "[deps] $dist ${have:-missing} != $want -> pip install $*";
+    pip install -q "$@" || { echo "!! failed installing $*"; exit 1; }; }
+}
+require_version polygraphy 0.50.3     "polygraphy==0.50.3" colored
+require_version tensorrt   11.1.0.106 "tensorrt==11.1.0.106"
+require_version onnx       1.22.0     "onnx==1.22.0"
 
 # put the pip CUDA runtime libs on the loader path (polygraphy's runner needs libcudart)
 NVBASE=$(python -c "import os,nvidia; print(os.path.dirname(nvidia.__file__))" 2>/dev/null || true)
@@ -40,7 +48,15 @@ if [ ! -s "$ONNX" ]; then
 fi
 
 echo "polygraphy: $ONNX  batch=$BS"
-if ! polygraphy run "$ONNX" --trt --input-shapes x:[$BS,3,224,224] --warm-up 25 --iterations 200; then
-  echo "!! polygraphy run FAILED — no valid throughput produced"; exit 1
+POLYLOG=$(mktemp)
+if ! polygraphy run "$ONNX" --trt --input-shapes x:[$BS,3,224,224] --warm-up 25 --iterations 200 2>&1 | tee "$POLYLOG"; then
+  echo "!! polygraphy run FAILED — no valid throughput produced"; rm -f "$POLYLOG"; exit 1
 fi
-echo "throughput = BS / (Average inference time).  e.g. 128 / 0.03228s = ~3965 img/s"
+# Compute throughput from the ACTUAL measured average latency (finding #8) — never a hard-coded example.
+AVG_MS=$(grep -oiE "Average inference time: [0-9.]+ ms" "$POLYLOG" | grep -oE "[0-9.]+" | tail -1)
+rm -f "$POLYLOG"
+if [ -n "$AVG_MS" ]; then
+  awk -v bs="$BS" -v ms="$AVG_MS" 'BEGIN{printf "measured throughput = batch %d / %.3f ms = %.0f img/s\n", bs, ms, bs/(ms/1000.0)}'
+else
+  echo "[warn] could not parse the average inference time from polygraphy output"
+fi

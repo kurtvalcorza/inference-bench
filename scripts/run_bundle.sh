@@ -10,10 +10,10 @@
 # Produces results/bundles/<UTC>-<label>.<rand>/ with everything needed to trust/reproduce a number:
 #   command.txt   exact command            meta.txt      repo commit+dirty, host, OS, python
 #   env-vars.txt  the benchmark env knobs  repo.diff     tracked working-tree diff (if repo dirty)
-#   repo.untracked untracked files (if dirty) env.txt     `pip freeze` AFTER run
-#   nvidia-smi.txt GPU + driver             checksums.txt sha256 of assets + a root hash over every
-#                                                         inet_val image (captures rebuilt/downloaded)
-#   tensorrt_run/ per-scenario LoadGen logs THIS command created (none attached if it created none)
+#   repo.untracked untracked files + sha256 (if dirty)  env.txt  `pip freeze` AFTER run
+#   nvidia-smi.txt GPU + driver             checksums.txt sha256 of the EFFECTIVE assets used (honors
+#                                                         DATA/ONNX overrides) + a root hash over them
+#   tensorrt_run/ the exact run dir the runner reported (by marker, not a global diff; none if absent)
 #   run.log       full stdout+stderr        exit_status  the command's real exit code
 #   manifest.json machine-readable summary
 #
@@ -69,7 +69,14 @@ DIRTY=$([ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ] && echo y
 # never left unexplained (finding #5).
 if [ "$DIRTY" = yes ]; then
   git -C "$REPO_ROOT" diff HEAD > "$B/repo.diff" 2>/dev/null
-  git -C "$REPO_ROOT" ls-files --others --exclude-standard > "$B/repo.untracked" 2>/dev/null
+  # List untracked files WITH their content sha256 (not just names) so a dirty run is verifiable —
+  # names alone can't reproduce what those files contained (finding #5).
+  git -C "$REPO_ROOT" ls-files --others --exclude-standard -z 2>/dev/null \
+    | while IFS= read -r -d '' f; do
+        if [ -f "$REPO_ROOT/$f" ]; then
+          printf '%s  %s\n' "$(sha256sum "$REPO_ROOT/$f" | cut -d' ' -f1)" "$f"
+        fi
+      done > "$B/repo.untracked" 2>/dev/null
 fi
 
 # Record the benchmark env knobs that change results. Keep this in sync with the env vars the runners
@@ -84,10 +91,10 @@ fi
 
 printf '%q ' "$@" > "$B/command.txt"; echo >> "$B/command.txt"
 
-# Snapshot the set of existing TRT run dirs BEFORE the command, so afterwards we can attach ONLY the
-# dirs this invocation created — never a pre-existing run's logs (finding #2).
-TRT_RUNS_DIR="$BENCH_ROOT/vision/runs"
-PRE_TRT=$(ls -d "$TRT_RUNS_DIR"/*/ 2>/dev/null | sort)
+# Attribute TRT logs by IDENTITY, not a racy global before/after listing (finding #4): tell the runner
+# where to record its exact run dir. Only trt_mlperf_run.sh writes this; other commands leave it empty.
+TRT_MARKER="$B/.trt_runroot"
+export BUNDLE_RUNROOT_FILE="$TRT_MARKER"
 
 echo "=== run bundle $B ==="
 "$@" 2>&1 | tee "$B/run.log"
@@ -98,30 +105,39 @@ echo "$RC" > "$B/exit_status"
 pip freeze > "$B/env.txt" 2>/dev/null || echo "(pip freeze unavailable)" > "$B/env.txt"
 nvidia-smi > "$B/nvidia-smi.txt" 2>&1 || echo "(no nvidia-smi)" > "$B/nvidia-smi.txt"
 : > "$B/checksums.txt"
-for f in "$BENCH_ROOT/vision/resnet50_fp16_dyn.onnx" "$BENCH_ROOT/vision/inet_val/val_map.txt" \
-         "$BENCH_ROOT/vision/inet_val/dataset_manifest.txt" "$BENCH_ROOT/llm/tinyllama.gguf"; do
+# Hash the assets the wrapped command ACTUALLY used — honor DATA/ONNX overrides, don't hardcode the
+# defaults (finding #3). Resolve them the same way the runners do.
+EFF_DATA="${DATA:-$BENCH_ROOT/vision/inet_val}"
+EFF_ONNX="${ONNX:-$BENCH_ROOT/vision/resnet50_fp16_dyn.onnx}"
+for f in "$EFF_ONNX" "$EFF_DATA/val_map.txt" "$EFF_DATA/dataset_manifest.txt" \
+         "$BENCH_ROOT/llm/tinyllama.gguf"; do
   [ -f "$f" ] && sha256sum "$f" >> "$B/checksums.txt"
 done
-# Attest to image CONTENT, not just val_map.txt (finding #4): one deterministic root hash over every
-# val image's sha256, so swapped/altered images are detectable even when val_map is unchanged.
-VAL_DIR="$BENCH_ROOT/vision/inet_val"
-if [ -d "$VAL_DIR" ]; then
-  ROOT=$(find "$VAL_DIR" -type f -name '*.JPEG' -print0 2>/dev/null | sort -z \
+# Also hash any positional FILE argument (e.g. polygraphy's ONNX model passed as $1), so a run using a
+# non-default model isn't recorded with the default model's hash.
+for a in "$@"; do
+  [ -f "$a" ] && [ "$a" != "$EFF_ONNX" ] && sha256sum "$a" >> "$B/checksums.txt"
+done
+# Attest to image CONTENT of the EFFECTIVE data dir, not just val_map.txt (finding #3/#4): one
+# deterministic root hash over every val image's sha256, so swapped/altered images are detectable.
+if [ -d "$EFF_DATA" ]; then
+  ROOT=$(find "$EFF_DATA" -type f -name '*.JPEG' -print0 2>/dev/null | sort -z \
          | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)
-  [ -n "$ROOT" ] && echo "$ROOT  (root sha256 of all inet_val/*.JPEG)" >> "$B/checksums.txt"
+  [ -n "$ROOT" ] && echo "$ROOT  (root sha256 of all *.JPEG under $EFF_DATA)" >> "$B/checksums.txt"
 fi
 
-# Snapshot the detailed TRT per-scenario LoadGen logs — but ONLY dirs this run created (finding #2).
-# Diff the post-run dir set against the pre-run snapshot; if the wrapped command created none, attach
-# nothing rather than a stale, unrelated run's logs.
-POST_TRT=$(ls -d "$TRT_RUNS_DIR"/*/ 2>/dev/null | sort)
-NEW_TRT=$(comm -13 <(printf '%s\n' "$PRE_TRT") <(printf '%s\n' "$POST_TRT") | sed '/^$/d')
-if [ -n "$NEW_TRT" ]; then
-  mkdir -p "$B/tensorrt_run"
-  while IFS= read -r d; do
-    [ -n "$d" ] || continue
-    cp -r "$d" "$B/tensorrt_run/" 2>/dev/null || true
-  done <<< "$NEW_TRT"
+# Attach the TRT per-scenario LoadGen logs by IDENTITY (finding #4): copy exactly the run dir the
+# runner reported via the marker — no global before/after diff, so overlapping wrappers can't steal
+# each other's dirs. A copy failure FAILS the bundle rather than silently producing a PASS with no logs.
+if [ -s "$TRT_MARKER" ]; then
+  RR=$(head -1 "$TRT_MARKER")
+  if [ -d "$RR" ]; then
+    mkdir -p "$B/tensorrt_run"
+    cp -r "$RR" "$B/tensorrt_run/" || { echo "!! failed copying TRT logs from $RR — bundle incomplete"; exit 1; }
+  else
+    echo "(runner reported run dir '$RR' but it does not exist)" > "$B/tensorrt_run.note"
+  fi
+  rm -f "$TRT_MARKER"
 else
   echo "(no TRT run dir created by this command)" > "$B/tensorrt_run.note"
 fi

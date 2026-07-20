@@ -87,7 +87,8 @@ inference-bench/
 ## Results at a glance
 
 Point-in-time smoke-test numbers (see the disclaimer above — **not** official MLPerf); laptop
-figures vary ±10% run-to-run. Provenance and caveats: [docs/results.md](docs/results.md).
+figures vary **±15–20%** run-to-run with thermal state (single-stream latency more). Provenance and
+caveats: [docs/results.md](docs/results.md).
 
 | Benchmark | RTX 5070 Ti | Colab T4 |
 |---|---|---|

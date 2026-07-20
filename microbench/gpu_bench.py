@@ -2,7 +2,7 @@
 """Portable GPU hardware benchmark: raw compute (TFLOPS), memory bandwidth,
 and ResNet-50 fp16 inference throughput (eager / torch.compile / TensorRT).
 Runs on any CUDA GPU. Usage: python gpu_bench.py"""
-import time, json, os, platform
+import time, json, os, platform, sys
 
 import torch
 # Blackwell sm_120 guard (harmless elsewhere)
@@ -64,17 +64,24 @@ res["tflops"] = {}       # peak per dtype
 res["tflops_curve"] = {} # per-n per dtype
 for label, dt, tf32 in [("fp32", torch.float32, False), ("tf32", torch.float32, True),
                         ("fp16", torch.float16, False), ("bf16", torch.bfloat16, False)]:
-    best = 0.0; curve = {}
+    best = 0.0; best_stats = None; curve = {}
     for n in MATMUL_SIZES:
         try:
-            v = _median([matmul_tflops(dt, tf32=tf32, n=n) for _ in range(REPEATS)])  # median of REPEATS
-            curve[n] = round(v, 1); best = max(best, v)
+            s = _stats([matmul_tflops(dt, tf32=tf32, n=n) for _ in range(REPEATS)])  # median + min/max
+            curve[n] = s["median"]
+            if s["median"] > best:
+                best = s["median"]; best_stats = s
         except Exception:
             curve[n] = None
         torch.cuda.empty_cache()
-    res["tflops"][label] = round(best, 1) if best else None
+    # Retain the spread (min/max), like bandwidth/resnet — not just the median (finding #9).
+    res["tflops"][label] = best_stats
     res["tflops_curve"][label] = curve
-    print(f"   {label:5s}: peak {best:8.1f} TFLOPS   (by n: {curve})")
+    if best_stats:
+        print(f"   {label:5s}: peak {best_stats['median']:8.1f} TFLOPS   "
+              f"(min {best_stats['min']}, max {best_stats['max']}; by n: {curve})")
+    else:
+        print(f"   {label:5s}: unsupported / failed")
 
 print(f"\n[2] Memory bandwidth (DtoD copy, 1 GB), median of {REPEATS}")
 try:
@@ -156,3 +163,11 @@ for mode in ["eager", "compile", "tensorrt"]:
 
 print("\n===== JSON =====")
 print(json.dumps(res, indent=2))
+
+# Fail loudly if NOTHING was measured — otherwise a GPU that errored on every tier still exits 0 and
+# the run-bundle wrapper marks the run PASS with an all-null result (finding #9).
+_measured = (any(res["tflops"].values()) or res.get("bandwidth_GBs")
+             or any(res["resnet50_fp16_imgs"].values()))
+if not _measured:
+    print("!! every GPU metric failed — no measurement produced; exiting non-zero", file=sys.stderr)
+    sys.exit(1)

@@ -49,14 +49,16 @@ def build(out_dir):
     # unique temp sibling (same filesystem => atomic os.replace) so concurrent builds can't collide
     tmp = tempfile.mkdtemp(prefix=os.path.basename(out) + ".building.", dir=os.path.dirname(out) or ".")
 
-    # Pin the revision on BOTH the file listing and every download, so the built subset is tied to
-    # one immutable dataset snapshot (finding #4).
-    files = sorted(f for f in HfApi().list_repo_files(REPO, repo_type="dataset", revision=REVISION)
-                   if f.endswith(".parquet"))
-    print(f"dataset {REPO}@{REVISION[:12]} — {len(files)} parquet shard(s)")
+    # Everything after mkdtemp runs inside the cleanup try, so a listing / network / bad-revision
+    # failure can't leave a .building.* dir behind (finding #7).
     g = k = 0
     counts = Counter()
     try:
+        # Pin the revision on BOTH the file listing and every download, so the built subset is tied to
+        # one immutable dataset snapshot (finding #4).
+        files = sorted(f for f in HfApi().list_repo_files(REPO, repo_type="dataset", revision=REVISION)
+                       if f.endswith(".parquet"))
+        print(f"dataset {REPO}@{REVISION[:12]} — {len(files)} parquet shard(s)")
         with open(os.path.join(tmp, "val_map.txt"), "w") as vm:
             for fn in files:
                 t = pq.read_table(hf_hub_download(REPO, fn, repo_type="dataset", revision=REVISION))

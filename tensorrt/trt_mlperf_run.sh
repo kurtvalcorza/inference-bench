@@ -37,11 +37,22 @@ CONF="$BENCH_ROOT/vision/trt.conf"
 
 echo "BENCH_ROOT=$BENCH_ROOT  INFERENCE_REPO=$INFERENCE_REPO  MAXBS=$MAXBS"
 
-# --- dependencies (pinned to the validated stack in ../requirements.txt, not "latest") ----------
-python -c "import mlperf_loadgen" 2>/dev/null || pip install -q "mlcommons-loadgen==6.0.16"
-python -c "import tensorrt, onnx"  2>/dev/null || pip install -q "tensorrt==11.1.0.106" "onnx==1.22.0"
-python -c "import cv2"             2>/dev/null || pip install -q "opencv-python-headless==5.0.0.93"
-python -c "import pycocotools"     2>/dev/null || pip install -q "pycocotools==2.0.11"   # main.py imports coco unconditionally
+# --- dependencies (ENFORCE the validated pins in ../requirements.txt, not just "importable") -------
+# An already-installed but DIFFERENT version must not silently pass (finding #6): compare the actual
+# installed distribution version to the pin and reinstall on mismatch.
+require_version () {  # dist_name  expected_version  pip_spec
+  local dist="$1" want="$2" spec="$3" have
+  have=$(python -c "from importlib.metadata import version; print(version('$dist'))" 2>/dev/null || true)
+  if [ "$have" != "$want" ]; then
+    echo "[deps] $dist ${have:-missing} != $want -> pip install $spec"
+    pip install -q "$spec" || { echo "!! failed installing $spec"; exit 1; }
+  fi
+}
+require_version mlcommons-loadgen      6.0.16      "mlcommons-loadgen==6.0.16"
+require_version tensorrt               11.1.0.106  "tensorrt==11.1.0.106"
+require_version onnx                   1.22.0      "onnx==1.22.0"
+require_version opencv-python-headless 5.0.0.93    "opencv-python-headless==5.0.0.93"   # cv2
+require_version pycocotools            2.0.11      "pycocotools==2.0.11"   # main.py imports coco unconditionally
 
 # --- harness (pin ENFORCED every run, not just on fresh clone) --------------
 INFERENCE_REF="${INFERENCE_REF:-da738a5}"   # commit the notebooks/results were produced against
@@ -59,6 +70,10 @@ fi
 # Force the working tree to EXACTLY the pin every run. This discards any drift or a prior run's
 # main.py patch (re-applied below), so a cached clone at another revision can't silently be used.
 git -C "$INFERENCE_REPO" reset --hard -q "$want" || { echo "!! could not pin harness to $INFERENCE_REF"; exit 1; }
+# Also drop UNTRACKED drift (a prior run's backend copy, stray files that could alter imports) so the
+# harness tree is EXACTLY the pin, not just its tracked files (finding #5). backend_tensorrt.py is
+# re-copied below, after this clean.
+git -C "$INFERENCE_REPO" clean -fdq
 have=$(git -C "$INFERENCE_REPO" rev-parse HEAD)
 [ "$have" = "$want" ] || { echo "!! harness pin mismatch: HEAD $have != $want"; exit 1; }
 echo "harness pinned: $(git -C "$INFERENCE_REPO" rev-parse --short HEAD) (INFERENCE_REF=$INFERENCE_REF)"
@@ -120,13 +135,15 @@ PY
 fi
 # Validate the dataset whether just built OR pre-existing/cached — a non-empty val_map is NOT enough
 # (a partial/poisoned set from an older build could linger). validate_dataset.py enforces an
-# INDEPENDENT profile (sample-count floor, distinct-class floor, unique paths, in-range int labels,
-# every image present & non-empty) so a truncated/duplicate map can't self-certify a favorable
-# accuracy subset. Floors are env-tunable: the representative 5k/1000-class mirror wants
-# MIN_SAMPLES=5000 MIN_CLASSES=1000; defaults (1000/10) accept that AND Imagenette (3925/10).
-MIN_SAMPLES="${MIN_SAMPLES:-1000}" MIN_CLASSES="${MIN_CLASSES:-10}" \
+# INDEPENDENT profile (sample-count floor, distinct-class floor, class-balance cap, unique paths,
+# in-range int labels, every image present, non-empty & contained under DATA) so a truncated /
+# duplicate / cherry-picked map can't self-certify a favorable accuracy subset.
+# Defaults match the runner's DEFAULT dataset (the representative 5k-image / 1000-class mirror), so a
+# zero-arg run is fail-closed. Pointing DATA= at the smaller Imagenette set (3925 imgs / 10 classes)
+# requires opting into a reduced profile: MIN_SAMPLES=3000 MIN_CLASSES=10.
+MIN_SAMPLES="${MIN_SAMPLES:-5000}" MIN_CLASSES="${MIN_CLASSES:-1000}" MAX_CLASS_FRACTION="${MAX_CLASS_FRACTION:-0.5}" \
   python "$SCRIPT_DIR/validate_dataset.py" "$DATA" "$VMAP" \
-  || { echo "!! dataset validation failed at $DATA — rebuild or point DATA= at a good val set"; exit 1; }
+  || { echo "!! dataset validation failed at $DATA — rebuild, or set MIN_SAMPLES/MIN_CLASSES for a smaller DATA set"; exit 1; }
 # EXPECTED is only trusted AFTER the profile passes (so the accuracy 'total == EXPECTED' cross-check
 # can't be satisfied by a 1-row map that also sets EXPECTED=1).
 EXPECTED=$(grep -c . "$VMAP")
@@ -138,6 +155,9 @@ cd "$H/python"
 # guarantees uniqueness — a second-resolution timestamp alone does not).
 mkdir -p "$BENCH_ROOT/vision/runs"
 RUNROOT=$(mktemp -d "$BENCH_ROOT/vision/runs/$(date +%Y%m%d-%H%M%S).XXXXXX")
+# Publish the EXACT run dir so scripts/run_bundle.sh attaches this invocation's logs by identity, not
+# by a racy global before/after listing (finding #4). Harmless when run outside the wrapper.
+[ -n "${BUNDLE_RUNROOT_FILE:-}" ] && printf '%s\n' "$RUNROOT" > "$BUNDLE_RUNROOT_FILE"
 ACC_MIN=${ACC_MIN:-70}          # top-1 floor (subset ResNet-50 v1: ~75% mirror / ~84% imagenette)
 FAILED=0
 echo "run dir: $RUNROOT"

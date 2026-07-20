@@ -7,10 +7,12 @@ captures the exact command, the benchmark env knobs, repo commit (+ working-tree
 logs, complete stdout/stderr, and the real exit status.
 
 A bundle is a point-in-time **record**, not cryptographically immutable — it's reproducible (re-run
-the recorded command in the recorded env), not tamper-proof. Bundles are **gitignored** (generated on
-the host, can be large), so a number described as "bundle-backed" in the docs was verified against a
-bundle **on the author's machine** — to make it independently checkable, publish that bundle
-deliberately with `git add -f` or as a release artifact.
+the recorded command in the recorded env), not tamper-proof. Bundles are **gitignored by default**
+(generated on the host, can be large). **Three are committed** (force-added past the `.gitignore`) as
+the citable evidence for the headline 5070 Ti numbers — the LoadGen+TensorRT, polygraphy, and
+llama-bench (@ b10068) runs, each `repo_dirty: no` — so a reader can check their raw logs directly.
+Any *other* "bundle-backed" number was verified against a bundle on the author's machine; publish it
+the same way (`git add -f` or a release artifact) to make it independently checkable.
 
 ```bash
 # wrap any runner in a bundle:
@@ -18,6 +20,7 @@ bash scripts/run_bundle.sh trt-5070ti -- bash tensorrt/trt_mlperf_run.sh
 bash scripts/run_bundle.sh micro-a100 -- python microbench/gpu_bench.py
 ```
 
-The prose tables in [../docs/results.md](../docs/results.md) are point-in-time summaries, **not**
-substantiated artifacts — see that file's *Provenance & caveats*. Prefer regenerating a bundle over
-citing the table.
+The prose tables in [../docs/results.md](../docs/results.md) are point-in-time summaries; the three
+optimized 5070 Ti rows are now backed by the committed bundles above, but the rest are unsubstantiated
+— see that file's *Provenance & caveats*. Prefer regenerating (or citing a committed) bundle over the
+table.
