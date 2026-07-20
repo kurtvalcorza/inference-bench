@@ -50,7 +50,8 @@ def matmul_gflops(dtype, n=4096, iters=10):
     dt = timed(lambda: torch.matmul(a, b), iters)
     return 2 * n**3 / dt / 1e9  # GFLOPS
 
-print(f"=== {res['cpu']} | {res['logical_cores']} logical / {res['physical_cores']} physical cores "
+_phys = res['physical_cores']   # None when psutil is absent — show '?' in the banner, keep JSON null
+print(f"=== {res['cpu']} | {res['logical_cores']} logical / {_phys if _phys is not None else '?'} physical cores "
       f"| torch {torch.__version__} | median of {REPEATS} ===")
 print(f"\n[1] Peak matmul GFLOPS (4096^3), median of {REPEATS}")
 res["gflops"] = {}

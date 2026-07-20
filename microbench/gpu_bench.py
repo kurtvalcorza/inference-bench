@@ -93,18 +93,25 @@ try:
 except Exception as e:
     res["bandwidth_GBs"] = None; print("   ERR", e)
 
-def resnet_throughput(mode, bs=64, iters=30):
+# Split BUILD (once per mode/batch) from MEASURE (repeated REPEATS times). The model build /
+# torch.compile / TRT engine build sits OUTSIDE timed(), so repeating it only multiplied wall-clock
+# (the compile tier paid a full torch.compile REPEATS x len(BATCHES) times) without changing any
+# measurement. Build once, measure REPEATS times.
+def build_resnet(mode, bs):
     import torchvision
     m = torchvision.models.resnet50(weights=None).to(dev).eval().to(memory_format=torch.channels_last).half()
     if mode == "compile":
-        m = torch.compile(m, mode="reduce-overhead")  # cudagraphs; fast compile per shape
+        m = torch.compile(m, mode="reduce-overhead")  # cudagraphs; compiled ONCE per (mode, bs)
     x = torch.randn(bs, 3, 224, 224, device=dev, dtype=torch.half).to(memory_format=torch.channels_last)
+    return m, x
+
+def measure_resnet(m, x, bs, iters=30):
     with torch.no_grad():
         dt = timed(lambda: m(x), iters, warmup=15)
     return bs / dt
 
-def resnet_tensorrt(bs=64, iters=50):
-    # TRT 10/11: strongly-typed network, precision inferred from the fp16 ONNX.
+def build_tensorrt(bs):
+    # TRT 10/11: strongly-typed network, precision inferred from the fp16 ONNX. Built ONCE per bs.
     import tensorrt as trt, io, torchvision
     m = torchvision.models.resnet50(weights=None).eval().to(dev).half()
     x = torch.randn(bs, 3, 224, 224, device=dev, dtype=torch.half)
@@ -128,9 +135,12 @@ def resnet_tensorrt(bs=64, iters=50):
     out = torch.empty(bs, 1000, device=dev, dtype=torch.half).contiguous()
     if not (ctx.set_tensor_address(names[0], inp.data_ptr()) and ctx.set_tensor_address(names[1], out.data_ptr())):
         raise RuntimeError("TensorRT set_tensor_address failed")
-    s = torch.cuda.current_stream().cuda_stream
+    return {"ctx": ctx, "engine": engine, "inp": inp, "out": out}   # hold refs so buffers stay alive
+
+def measure_tensorrt(bundle, bs, iters=50):
+    ctx = bundle["ctx"]; strm = torch.cuda.current_stream().cuda_stream
     def step():   # a False return would otherwise let us time a no-op and report bogus img/s
-        if not ctx.execute_async_v3(s):
+        if not ctx.execute_async_v3(strm):
             raise RuntimeError("TensorRT execute_async_v3 failed")
     dt = timed(step, iters, warmup=20)
     return bs / dt
@@ -144,9 +154,15 @@ res["resnet50_curve"] = {}       # img/s per batch per tier
 for mode in ["eager", "compile", "tensorrt"]:
     best = 0.0; best_stats = None; curve = {}
     for bs in BATCHES:
+        obj = None
         try:
-            fn = (lambda: resnet_tensorrt(bs=bs)) if mode == "tensorrt" else (lambda: resnet_throughput(mode, bs=bs))
-            s = _stats([fn() for _ in range(REPEATS)])    # median + min/max over REPEATS warm trials
+            if mode == "tensorrt":
+                obj = build_tensorrt(bs)                              # engine/context/buffers built ONCE
+                trials = [measure_tensorrt(obj, bs) for _ in range(REPEATS)]
+            else:
+                obj = build_resnet(mode, bs)                          # model / torch.compile built ONCE
+                trials = [measure_resnet(obj[0], obj[1], bs) for _ in range(REPEATS)]
+            s = _stats(trials)                                        # median + min/max over REPEATS
             curve[bs] = round(s["median"])
             if s["median"] > best:
                 best = s["median"]; best_stats = s
@@ -154,7 +170,9 @@ for mode in ["eager", "compile", "tensorrt"]:
             curve[bs] = None
             if bs == BATCHES[0]:  # first batch failed -> tier unsupported
                 print(f"   {mode:9s}: skipped ({str(e)[:70]})")
-        torch.cuda.empty_cache()
+        finally:
+            del obj                                                   # free model/engine before next batch
+            torch.cuda.empty_cache()
     res["resnet50_fp16_imgs"][mode] = best_stats   # {median,min,max} of the peak batch (or None)
     res["resnet50_curve"][mode] = curve
     if best_stats:

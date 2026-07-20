@@ -118,12 +118,19 @@ done
 for a in "$@"; do
   [ -f "$a" ] && [ "$a" != "$EFF_ONNX" ] && sha256sum "$a" >> "$B/checksums.txt"
 done
-# Attest to image CONTENT of the EFFECTIVE data dir, not just val_map.txt (finding #3/#4): one
-# deterministic root hash over every val image's sha256, so swapped/altered images are detectable.
+# Attest to image CONTENT of the EFFECTIVE data dir, not just val_map.txt: one deterministic root hash
+# over every val image's sha256, so swapped/altered images are detectable.
+# ONLY write the line when images actually exist — a naive find|xargs sha256sum|sha256sum over a dir
+# with no matches hashes EMPTY input and yields a non-empty ROOT (e3b0c442…), a bogus line attesting
+# nothing (and `xargs -r` doesn't help: the OUTER sha256sum still hashes empty). Match case-insensitive
+# .jpg/.jpeg so non-default DATA= sets are covered, not just the mirror's uppercase .JPEG.
 if [ -d "$EFF_DATA" ]; then
-  ROOT=$(find "$EFF_DATA" -type f -name '*.JPEG' -print0 2>/dev/null | sort -z \
-         | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)
-  [ -n "$ROOT" ] && echo "$ROOT  (root sha256 of all *.JPEG under $EFF_DATA)" >> "$B/checksums.txt"
+  _first_img=$(find "$EFF_DATA" -type f \( -iname '*.jpeg' -o -iname '*.jpg' \) -print 2>/dev/null | head -1)
+  if [ -n "$_first_img" ]; then
+    ROOT=$(find "$EFF_DATA" -type f \( -iname '*.jpeg' -o -iname '*.jpg' \) -print0 2>/dev/null | sort -z \
+           | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)
+    echo "$ROOT  (root sha256 of all *.jp*g under $EFF_DATA)" >> "$B/checksums.txt"
+  fi
 fi
 
 # Attach the TRT per-scenario LoadGen logs by IDENTITY (finding #4): copy exactly the run dir the
