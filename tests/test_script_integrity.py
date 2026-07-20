@@ -21,6 +21,14 @@ def test_trt_runner_verifies_valid_and_propagates_failure():
 def test_polygraphy_propagates_failure():
     s = read("standards/polygraphy_resnet.sh")
     assert "polygraphy run FAILED" in s and "exit 1" in s
+    parse_failure = s.split("could not parse the average inference time", 1)[1]
+    assert "exit 1" in parse_failure, "an unparseable result must not produce a successful bundle"
+
+
+def test_bundle_records_dataset_balance_knob():
+    s = read("scripts/run_bundle.sh")
+    env_block = s.split("for v in", 1)[1].split("; do", 1)[0]
+    assert "MAX_CLASS_FRACTION" in env_block
 
 
 # --- #5 TensorRT status checks ---------------------------------------------

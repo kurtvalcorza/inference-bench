@@ -58,5 +58,6 @@ rm -f "$POLYLOG"
 if [ -n "$AVG_MS" ]; then
   awk -v bs="$BS" -v ms="$AVG_MS" 'BEGIN{printf "measured throughput = batch %d / %.3f ms = %.0f img/s\n", bs, ms, bs/(ms/1000.0)}'
 else
-  echo "[warn] could not parse the average inference time from polygraphy output"
+  echo "!! could not parse the average inference time from polygraphy output — no valid throughput produced"
+  exit 1
 fi
